@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { GitBranch, ExternalLink, Search, RefreshCw, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X, Folder } from 'lucide-react';
+import { GitBranch, ExternalLink, Search, RefreshCw, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X, Key, ShieldCheck, Building2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface GitHubRepo {
@@ -26,7 +26,13 @@ export default function RepositoriesPage() {
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
+  const [visibilityFilter, setVisibilityFilter] = useState<'all' | 'public' | 'private'>('all');
   const [visibleCount, setVisibleCount] = useState(6);
+
+  // Token configuration modal
+  const [showTokenModal, setShowTokenModal] = useState(false);
+  const [customToken, setCustomToken] = useState('');
+  const [savedTokenMsg, setSavedTokenMsg] = useState<string | null>(null);
 
   // Map repo fullName -> { projectId, projectName }
   const [linkedMap, setLinkedMap] = useState<Record<string, { projectId: string; projectName: string }>>({});
@@ -38,12 +44,12 @@ export default function RepositoriesPage() {
   const [connecting, setConnecting] = useState(false);
   const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
 
-  const loadData = async (username?: string) => {
+  const loadData = async (username?: string, visibility: 'all' | 'public' | 'private' = visibilityFilter) => {
     setLoading(true);
     setError(null);
     setVisibleCount(6);
     try {
-      const res = await api.repositories.listGitHub(username);
+      const res = await api.repositories.listGitHub(username, visibility);
       if (res.repositories) {
         setRepositories(res.repositories);
       } else if (res.message) {
@@ -79,7 +85,26 @@ export default function RepositoriesPage() {
 
   useEffect(() => {
     loadData();
-  }, [user]);
+    const storedToken = typeof window !== 'undefined' ? localStorage.getItem('github_token') : null;
+    if (storedToken) setCustomToken(storedToken);
+  }, [user, visibilityFilter]);
+
+  const saveToken = () => {
+    if (typeof window !== 'undefined') {
+      if (customToken.trim()) {
+        localStorage.setItem('github_token', customToken.trim());
+        setSavedTokenMsg('Token guardado exitosamente. Cargando repositorios...');
+      } else {
+        localStorage.removeItem('github_token');
+        setSavedTokenMsg('Token eliminado. Usando sesión por defecto.');
+      }
+    }
+    setTimeout(() => {
+      setShowTokenModal(false);
+      setSavedTokenMsg(null);
+      loadData();
+    }, 1200);
+  };
 
   const openConnectModal = async (repo: GitHubRepo) => {
     setSelectedRepo(repo);
@@ -140,6 +165,7 @@ export default function RepositoriesPage() {
   );
 
   const visibleRepos = filtered.slice(0, visibleCount);
+  const hasCustomToken = typeof window !== 'undefined' && !!localStorage.getItem('github_token');
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
@@ -151,44 +177,84 @@ export default function RepositoriesPage() {
             <h1 className="text-2xl font-bold text-foreground">Repositorios de GitHub</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Explora tus repositorios y vincúlalos a tus proyectos para análisis automático con IA.
+            Explora tus repositorios públicos, privados u organizacionales y vincúlalos a tus proyectos.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            onClick={() => setShowTokenModal(true)}
+            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border shadow-xs ${
+              hasCustomToken
+                ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
+                : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800'
+            }`}
+          >
+            {hasCustomToken ? <ShieldCheck size={14} className="text-purple-600" /> : <Key size={14} className="text-amber-400" />}
+            {hasCustomToken ? 'Token Privado Configurado' : 'Acceso Repos Privados / Empresa'}
+          </button>
+
           <button
             onClick={() => loadData(usernameInput ? usernameInput : undefined)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-border hover:bg-gray-50 rounded-xl text-sm font-medium text-foreground transition-colors shadow-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-border hover:bg-gray-50 rounded-xl text-xs font-medium text-foreground transition-colors shadow-xs"
           >
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
             Actualizar
           </button>
         </div>
       </div>
 
-      {/* Control Bar: Search & Fetch by User */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Control Bar: Search, Visibility Filter & User Fetch */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="md:col-span-2 relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
-            placeholder="Buscar entre los repositorios cargados..."
+            placeholder="Buscar por nombre o descripción..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm"
+            className="w-full pl-10 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-xs"
           />
         </div>
+
+        <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-medium">
+          <button
+            onClick={() => setVisibilityFilter('all')}
+            className={`flex-1 py-1.5 rounded-lg transition-all ${
+              visibilityFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Todos
+          </button>
+          <button
+            onClick={() => setVisibilityFilter('public')}
+            className={`flex-1 py-1.5 rounded-lg transition-all ${
+              visibilityFilter === 'public' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Públicos
+          </button>
+          <button
+            onClick={() => setVisibilityFilter('private')}
+            className={`flex-1 py-1.5 rounded-lg transition-all ${
+              visibilityFilter === 'private' ? 'bg-white text-purple-700 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Privados
+          </button>
+        </div>
+
         <form onSubmit={handleSearchUser} className="flex gap-2">
           <input
             type="text"
-            placeholder="Usuario de GitHub..."
+            placeholder="Usuario / Org..."
             value={usernameInput}
             onChange={(e) => setUsernameInput(e.target.value)}
-            className="flex-1 px-3.5 py-2.5 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm"
+            className="flex-1 px-3.5 py-2.5 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-xs"
           />
           <button
             type="submit"
             disabled={loading}
-            className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+            className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs disabled:opacity-50"
           >
             Buscar
           </button>
@@ -200,7 +266,7 @@ export default function RepositoriesPage() {
         <motion.div
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-800 text-sm shadow-sm"
+          className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-800 text-sm shadow-xs"
         >
           <AlertCircle className="text-red-600 mt-0.5 shrink-0" size={18} />
           <div className="flex-1">
@@ -214,7 +280,7 @@ export default function RepositoriesPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4, 5, 6].map((n) => (
-            <div key={n} className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3 animate-pulse">
+            <div key={n} className="bg-white border border-border rounded-2xl p-5 shadow-xs space-y-3 animate-pulse">
               <div className="h-4 bg-gray-200 rounded w-1/2" />
               <div className="h-3 bg-gray-200 rounded w-3/4" />
               <div className="h-3 bg-gray-200 rounded w-1/4" />
@@ -234,7 +300,7 @@ export default function RepositoriesPage() {
                     initial={{ opacity: 0, y: 15 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: (i % 6) * 0.04 }}
-                    className="bg-white border border-border hover:border-primary/40 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                    className="bg-white border border-border hover:border-primary/40 rounded-2xl p-5 shadow-xs hover:shadow-sm transition-all flex flex-col justify-between group"
                   >
                     <div className="space-y-2">
                       <div className="flex items-start justify-between gap-2">
@@ -252,15 +318,18 @@ export default function RepositoriesPage() {
                           }`}
                         >
                           {repo.isPrivate ? <Lock size={10} /> : <Globe size={10} />}
-                          {repo.isPrivate ? 'Privado' : 'Público'}
+                          {repo.isPrivate ? 'Privado / Empresa' : 'Público'}
                         </span>
                       </div>
 
                       {repo.description ? (
                         <p className="text-xs text-muted-foreground line-clamp-2">{repo.description}</p>
                       ) : (
-                        <p className="text-xs text-muted-foreground/60 italic">Sin descripción</p>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-400 font-mono pt-0.5">
+                          <GitBranch size={11} /> Rama: {repo.defaultBranch || 'main'}
+                        </div>
                       )}
+
                     </div>
 
                     <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
@@ -303,7 +372,7 @@ export default function RepositoriesPage() {
               <div className="flex justify-center pt-4 pb-2">
                 <button
                   onClick={() => setVisibleCount((prev) => prev + 6)}
-                  className="px-6 py-2.5 bg-white border border-border hover:bg-gray-50 rounded-xl text-xs font-semibold text-foreground transition-all shadow-sm flex items-center gap-2"
+                  className="px-6 py-2.5 bg-white border border-border hover:bg-gray-50 rounded-xl text-xs font-semibold text-foreground transition-all shadow-xs flex items-center gap-2"
                 >
                   Ver más ({filtered.length - visibleCount} restantes)
                 </button>
@@ -312,14 +381,88 @@ export default function RepositoriesPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white border border-border rounded-2xl p-12 text-center space-y-3 shadow-sm">
+        <div className="bg-white border border-border rounded-2xl p-12 text-center space-y-3 shadow-xs">
           <FolderGit2 className="mx-auto text-muted-foreground" size={32} />
           <h3 className="font-semibold text-foreground">No se encontraron repositorios</h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            Prueba buscando por usuario de GitHub o verifica la configuración de tu token.
+            Prueba configurando tu Token de Acceso para Repositorios Privados o de Empresa.
           </p>
         </div>
       )}
+
+      {/* Token Modal */}
+      <AnimatePresence>
+        {showTokenModal && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-border rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-900">
+                  <Building2 size={20} className="text-purple-600" />
+                  <h3 className="font-bold text-base">Acceso a Repos Privados y Empresa</h3>
+                </div>
+                <button onClick={() => setShowTokenModal(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Ingresa tu <strong>Personal Access Token (PAT)</strong> de GitHub con permisos <code>repo</code> y <code>read:org</code> para listar tus proyectos privados y de empresa.
+              </p>
+
+              {savedTokenMsg ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2 font-medium">
+                  <Check size={16} className="text-emerald-600" />
+                  <span>{savedTokenMsg}</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">GitHub Personal Access Token (PAT)</label>
+                    <input
+                      type="password"
+                      value={customToken}
+                      onChange={(e) => setCustomToken(e.target.value)}
+                      placeholder="ghp_xxxxxxxxxxxxxxxxxxxx"
+                      className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2.5 text-xs font-mono outline-none focus:ring-2 focus:ring-primary/20"
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={saveToken}
+                      className="flex-1 bg-primary text-white py-2.5 rounded-xl text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
+                    >
+                      Guardar Token y Cargar Repos
+                    </button>
+                    {customToken && (
+                      <button
+                        onClick={() => {
+                          setCustomToken('');
+                          localStorage.removeItem('github_token');
+                          setSavedTokenMsg('Token eliminado');
+                          setTimeout(() => {
+                            setShowTokenModal(false);
+                            setSavedTokenMsg(null);
+                            loadData();
+                          }, 1000);
+                        }}
+                        className="px-3 py-2.5 text-red-600 hover:bg-red-50 rounded-xl text-xs font-medium border border-red-200"
+                      >
+                        Limpiar Token
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Connect Modal */}
       <AnimatePresence>
@@ -377,7 +520,7 @@ export default function RepositoriesPage() {
                     <button
                       onClick={handleConnectRepo}
                       disabled={connecting || !selectedProjectId}
-                      className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                      className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs disabled:opacity-50"
                     >
                       {connecting ? 'Vinculando...' : 'Vincular Repositorio'}
                     </button>

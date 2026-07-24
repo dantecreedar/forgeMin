@@ -69,8 +69,14 @@ export const api = {
       fetch(`${API_BASE}/objectives/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
   repositories: {
-    listGitHub: (username?: string) =>
-      fetch(`${API_BASE}/repositories/github${username ? `?username=${encodeURIComponent(username)}` : ''}`, { headers: getHeaders() }).then(handleResponse),
+    listGitHub: (username?: string, visibility: string = 'all') => {
+      const params = new URLSearchParams();
+      if (username) params.append('username', username);
+      if (visibility) params.append('visibility', visibility);
+      const query = params.toString();
+      return fetch(`${API_BASE}/repositories/github${query ? `?${query}` : ''}`, { headers: getHeaders() }).then(handleResponse);
+    },
+
     listByProject: (projectId: string) =>
       fetch(`${API_BASE}/repositories/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
     connect: (projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]) =>

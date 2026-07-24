@@ -8,11 +8,13 @@ export class RepositoryController {
   @Get('github')
   async getGitHubRepositories(
     @Query('username') username?: string,
+    @Query('visibility') visibility?: 'all' | 'public' | 'private',
     @Headers('x-github-token') userGithubToken?: string,
   ) {
-    const repos = await this.repositoryService.fetchGitHubRepositories(username, userGithubToken);
+    const repos = await this.repositoryService.fetchGitHubRepositories(username, userGithubToken, visibility);
     return { repositories: repos };
   }
+
 
 
 

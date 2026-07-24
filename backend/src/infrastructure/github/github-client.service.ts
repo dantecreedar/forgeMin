@@ -34,11 +34,13 @@ export class GitHubClientService implements IGitHubClient {
       }
       const res = await octokit.repos.listForAuthenticatedUser({
         visibility,
+        affiliation: 'owner,collaborator,organization_member',
         sort: 'updated',
         per_page: 100,
       });
       data = res.data;
     }
+
 
     return data.map((repo) => ({
       id: repo.id,
