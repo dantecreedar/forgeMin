@@ -203,23 +203,23 @@ export default function RepositoriesPage() {
         </div>
       </div>
 
-      {/* Control Bar: Search, Visibility Filter & User Fetch */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="md:col-span-2 relative">
+      {/* Control Bar: Search & Visibility Filter */}
+      <div className="flex flex-col md:flex-row items-center gap-3">
+        <div className="flex-1 w-full relative">
           <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground" size={16} />
           <input
             type="text"
-            placeholder="Buscar por nombre o descripción..."
+            placeholder="Buscar entre los repositorios cargados..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-xs"
           />
         </div>
 
-        <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-medium">
+        <div className="flex bg-gray-100 p-1 rounded-xl border border-gray-200 text-xs font-medium w-full md:w-auto shrink-0">
           <button
             onClick={() => setVisibilityFilter('all')}
-            className={`flex-1 py-1.5 rounded-lg transition-all ${
+            className={`px-4 py-1.5 rounded-lg transition-all ${
               visibilityFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -227,7 +227,7 @@ export default function RepositoriesPage() {
           </button>
           <button
             onClick={() => setVisibilityFilter('public')}
-            className={`flex-1 py-1.5 rounded-lg transition-all ${
+            className={`px-4 py-1.5 rounded-lg transition-all ${
               visibilityFilter === 'public' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -235,31 +235,15 @@ export default function RepositoriesPage() {
           </button>
           <button
             onClick={() => setVisibilityFilter('private')}
-            className={`flex-1 py-1.5 rounded-lg transition-all ${
+            className={`px-4 py-1.5 rounded-lg transition-all ${
               visibilityFilter === 'private' ? 'bg-white text-purple-700 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Privados
           </button>
         </div>
-
-        <form onSubmit={handleSearchUser} className="flex gap-2">
-          <input
-            type="text"
-            placeholder="Usuario / Org..."
-            value={usernameInput}
-            onChange={(e) => setUsernameInput(e.target.value)}
-            className="flex-1 px-3.5 py-2.5 bg-white border border-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-xs"
-          />
-          <button
-            type="submit"
-            disabled={loading}
-            className="px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs disabled:opacity-50"
-          >
-            Buscar
-          </button>
-        </form>
       </div>
+
 
       {/* Error Banner */}
       {error && (
