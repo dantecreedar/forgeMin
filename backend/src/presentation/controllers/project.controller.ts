@@ -4,6 +4,10 @@ import { SyncEngineService } from '../../application/analysis/sync-engine.servic
 import { AIEngineService } from '../../application/analysis/ai-engine.service';
 import { RepositoryApplicationService } from '../../application/repository/repository.service';
 
+import { Inject } from '@nestjs/common';
+import { GITHUB_CLIENT, IGitHubClient } from '../../infrastructure/github/github-client.interface';
+import { GeminiService } from '../../infrastructure/gemini/gemini.service';
+
 @Controller('projects')
 export class ProjectController {
   constructor(
@@ -11,6 +15,8 @@ export class ProjectController {
     private readonly syncEngineService: SyncEngineService,
     private readonly aiEngineService: AIEngineService,
     private readonly repositoryService: RepositoryApplicationService,
+    @Inject(GITHUB_CLIENT) private readonly githubClient: IGitHubClient,
+    private readonly geminiService: GeminiService,
   ) {}
 
   @Post()
@@ -28,6 +34,30 @@ export class ProjectController {
     const analyses = await this.aiEngineService.analyzeAllObjectives(id);
     return { success: true, analyses };
   }
+
+  @Get(':id/readme')
+  async getReadmeSummary(@Param('id') id: string) {
+    const repos = await this.repositoryService.findByProjectId(id);
+    if (repos.length === 0) {
+      return { summary: 'Sin repositorio de GitHub vinculado. Vincula un repositorio para analizar su README.md.' };
+    }
+    const repo = repos[0];
+    const readmeContent = await this.githubClient.getReadme(repo.owner, repo.name);
+    if (!readmeContent) {
+      return { summary: `No se encontró un archivo README.md en el repositorio ${repo.fullName}.` };
+    }
+    const prompt = `Analiza este archivo README.md y genera un Resumen Ejecutivo en español del proyecto en 2-3 párrafos claros:
+- ¿De qué trata la aplicación?
+- ¿Cuáles son sus principales funcionalidades?
+- Stack tecnológico o arquitectura clave si se menciona.
+
+README.md:
+${readmeContent.slice(0, 4000)}`;
+
+    const res = await this.geminiService.chat([{ role: 'user', content: prompt }]);
+    return { summary: res.reply, repoName: repo.fullName };
+  }
+
 
   @Get(':id')
   async findById(@Param('id') id: string) {

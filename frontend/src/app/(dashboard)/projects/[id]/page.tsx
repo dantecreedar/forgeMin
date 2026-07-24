@@ -4,7 +4,12 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { ArrowLeft, Edit3, Trash2, Plus, X, CheckCircle, Clock, AlertCircle, Target, Sparkles, FolderGit2, RefreshCw, Link as LinkIcon } from 'lucide-react';
+import { 
+  ArrowLeft, Edit3, Trash2, Plus, X, CheckCircle, Clock, AlertCircle, Target, 
+  Sparkles, FolderGit2, RefreshCw, Link as LinkIcon, Table, LayoutGrid, Download, 
+  FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink
+} from 'lucide-react';
+
 import Link from 'next/link';
 
 const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
@@ -21,8 +26,14 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<any>(null);
   const [objectives, setObjectives] = useState<any[]>([]);
   const [connectedRepos, setConnectedRepos] = useState<any[]>([]);
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [readmeSummary, setReadmeSummary] = useState<string | null>(null);
+  const [loadingReadme, setLoadingReadme] = useState(false);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+
+  // View mode: 'cards' vs 'excel'
+  const [viewMode, setViewMode] = useState<'cards' | 'excel'>('cards');
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState('');
@@ -32,29 +43,55 @@ export default function ProjectDetailPage() {
   const [newTitle, setNewTitle] = useState('');
   const [newDesc, setNewDesc] = useState('');
 
+  // Upload document modal
+  const [showUploadDoc, setShowUploadDoc] = useState(false);
+  const [uploadName, setUploadName] = useState('');
+  const [uploadUrl, setUploadUrl] = useState('');
+
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deletingObjId, setDeletingObjId] = useState<string | null>(null);
   const [objCreateError, setObjCreateError] = useState<string | null>(null);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
 
-  const load = () => {
+  const loadData = async (autoAnalyze = false) => {
     if (!id) return;
-    Promise.all([
-      api.projects.get(id),
-      api.objectives.list(id),
-      api.repositories.listByProject(id),
-    ]).then(([projRes, objRes, repoRes]) => {
+    try {
+      const [projRes, objRes, repoRes, docRes] = await Promise.all([
+        api.projects.get(id),
+        api.objectives.list(id),
+        api.repositories.listByProject(id),
+        api.documents.listByProject(id),
+      ]);
       setProject(projRes.project);
       setObjectives(objRes.objectives || []);
       setConnectedRepos(repoRes.repositories || []);
+      setDocuments(docRes.documents || []);
       setEditName(projRes.project?.name || '');
       setEditDesc(projRes.project?.description || '');
-    }).catch(() => {}).finally(() => setLoading(false));
+
+      // Load README AI Summary if connected to GitHub
+      if ((repoRes.repositories || []).length > 0) {
+        setLoadingReadme(true);
+        api.projects.getReadmeSummary(id)
+          .then((res) => setReadmeSummary(res.summary))
+          .catch(() => {})
+          .finally(() => setLoadingReadme(false));
+      }
+
+      // Trigger automatic sync & analysis on mount if requested
+      if (autoAnalyze) {
+        api.projects.analyze(id).then(() => {
+          api.objectives.list(id).then((r) => setObjectives(r.objectives || []));
+        }).catch(() => {});
+      }
+    } catch {} finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    load();
-    const handleRefresh = () => load();
+    loadData(true); // Auto-sync on page mount!
+    const handleRefresh = () => loadData(false);
     window.addEventListener('forgemind:refresh', handleRefresh);
     return () => window.removeEventListener('forgemind:refresh', handleRefresh);
   }, [id]);
@@ -81,8 +118,8 @@ export default function ProjectDetailPage() {
     try {
       const res = await api.projects.analyze(id);
       if (res.success) {
-        setAnalysisMessage('Análisis completado. Los objetivos han sido evaluados en base a los commits.');
-        load();
+        setAnalysisMessage('Análisis automático completado exitosamente.');
+        loadData(false);
       }
     } catch (e: any) {
       setAnalysisMessage('Error al analizar con IA: ' + (e.message || 'Error en el servidor'));
@@ -106,26 +143,75 @@ export default function ProjectDetailPage() {
         setShowCreate(false);
       } else if (res.message) {
         setObjCreateError(res.message);
-      } else {
-        setObjCreateError('No se pudo crear el objetivo.');
       }
     } catch (err: any) {
       setObjCreateError(err?.message || 'Error al conectar con el servidor.');
     }
   };
 
-  const deleteObjective = async (id: string) => {
+  const deleteObjective = async (objId: string) => {
     try {
-      await api.objectives.delete(id);
-      setObjectives((prev) => prev.filter((o) => o.id !== id));
+      await api.objectives.delete(objId);
+      setObjectives((prev) => prev.filter((o) => o.id !== objId));
       setDeletingObjId(null);
     } catch {}
+  };
+
+  // Upload file attachment handler
+  const handleUploadDocument = async () => {
+    if (!uploadName.trim()) return;
+    try {
+      const extension = uploadName.split('.').pop()?.toUpperCase() || 'DOC';
+      const res = await api.documents.create(
+        id,
+        uploadName.trim(),
+        extension,
+        1024 * 50,
+        uploadUrl.trim() || undefined
+      );
+      if (res.document) {
+        setDocuments((prev) => [res.document, ...prev]);
+        setUploadName('');
+        setUploadUrl('');
+        setShowUploadDoc(false);
+      }
+    } catch {}
+  };
+
+  const deleteDocument = async (docId: string) => {
+    try {
+      await api.documents.delete(docId);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } catch {}
+  };
+
+  // Export Objectives Table to Excel / CSV format
+  const exportToExcelCSV = () => {
+    if (objectives.length === 0) return;
+    const headers = ['ID', 'Titulo', 'Descripcion', 'Estado', 'Progreso (%)', 'Resumen IA'];
+    const rows = objectives.map((o) => [
+      `"${o.id}"`,
+      `"${o.title.replace(/"/g, '""')}"`,
+      `"${(o.description || '').replace(/"/g, '""')}"`,
+      `"${o.status}"`,
+      `"${o.progress}%"`,
+      `"${(o.summary || '').replace(/"/g, '""')}"`,
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `objetivos_proyecto_${project.name.toLowerCase().replace(/\s+/g, '_')}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   if (loading) {
     return (
       <div className="flex-1 flex items-start justify-center overflow-y-auto p-6">
-        <div className="w-full max-w-3xl space-y-4 animate-pulse">
+        <div className="w-full max-w-4xl space-y-4 animate-pulse">
           <div className="h-6 bg-gray-200 rounded w-1/4" />
           <div className="h-10 bg-gray-200 rounded w-1/2" />
           <div className="h-4 bg-gray-200 rounded w-3/4" />
@@ -150,7 +236,7 @@ export default function ProjectDetailPage() {
 
   return (
     <div className="flex-1 flex items-start justify-center overflow-y-auto p-6">
-      <div className="w-full max-w-3xl space-y-6">
+      <div className="w-full max-w-4xl space-y-6">
         <button
           onClick={() => router.back()}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
@@ -167,7 +253,7 @@ export default function ProjectDetailPage() {
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && saveEdit()}
-                className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 mb-3 text-lg font-semibold"
+                className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-lg font-semibold outline-none focus:ring-2 focus:ring-primary/20 mb-3"
                 autoFocus
               />
               <textarea
@@ -220,12 +306,25 @@ export default function ProjectDetailPage() {
                   <FolderGit2 className="text-primary" size={18} />
                   <span className="text-xs font-semibold text-foreground">Repositorios GitHub:</span>
                   {connectedRepos.length > 0 ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {connectedRepos.map((repo) => (
-                        <span key={repo.id} className="text-xs bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full font-mono font-medium">
-                          {repo.fullName || `${repo.owner}/${repo.name}`}
-                        </span>
-                      ))}
+                    <div className="flex flex-wrap gap-2">
+                      {connectedRepos.map((repo) => {
+                        const repoFullName = repo.fullName || `${repo.owner}/${repo.name}`;
+                        const repoUrl = `https://github.com/${repoFullName}`;
+                        return (
+                          <a
+                            key={repo.id}
+                            href={repoUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 px-3 py-1 rounded-full font-mono font-semibold flex items-center gap-1.5 transition-all shadow-2xs group"
+                            title={`Abrir ${repoFullName} en GitHub`}
+                          >
+                            <FolderGit2 size={13} className="text-purple-600" />
+                            <span>{repoFullName}</span>
+                            <ExternalLink size={11} className="text-purple-400 group-hover:text-purple-700 transition-colors" />
+                          </a>
+                        );
+                      })}
                     </div>
                   ) : (
                     <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded font-medium">
@@ -233,251 +332,353 @@ export default function ProjectDetailPage() {
                     </span>
                   )}
                 </div>
-                <Link
-                  href="/repositories"
-                  className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
-                >
-                  <LinkIcon size={12} />
-                  {connectedRepos.length > 0 ? 'Administrar repos' : 'Vincular un repositorio'}
-                </Link>
+                <div className="flex items-center gap-3">
+                  {connectedRepos.length > 0 && (
+                    <a
+                      href={`https://github.com/${connectedRepos[0].fullName || `${connectedRepos[0].owner}/${connectedRepos[0].name}`}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-xl font-medium inline-flex items-center gap-1.5 transition-colors shadow-xs"
+                    >
+                      <FolderGit2 size={13} className="text-purple-400" />
+                      Abrir en GitHub <ExternalLink size={11} />
+                    </a>
+                  )}
+                  <Link
+                    href="/repositories"
+                    className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
+                  >
+                    <LinkIcon size={12} />
+                    {connectedRepos.length > 0 ? 'Administrar repos' : 'Vincular repositorio'}
+                  </Link>
+                </div>
               </div>
+
             </div>
           )}
         </div>
 
-        <AnimatePresence>
-          {confirmDelete && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className="bg-red-50 border border-red-200 rounded-2xl p-5"
-            >
-              <p className="text-sm text-red-700 mb-4">¿Estás seguro de que deseas eliminar este proyecto? Esta acción no se puede deshacer.</p>
-              <div className="flex gap-3">
-                <motion.button
-                  whileTap={{ scale: 0.97 }}
-                  onClick={handleDelete}
-                  className="bg-red-600 text-white px-5 py-2 rounded-xl text-sm font-medium"
-                >
-                  Eliminar
-                </motion.button>
-                <button onClick={() => setConfirmDelete(false)} className="text-red-600 px-5 py-2 rounded-xl text-sm hover:bg-red-100">
-                  Cancelar
-                </button>
+        {/* AI Executive Summary from README.md */}
+        {connectedRepos.length > 0 && (
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm text-slate-100 space-y-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-amber-400">
+                <BookOpen size={18} />
+                <h3 className="text-xs font-bold uppercase tracking-wider">Resumen Ejecutivo de la App (Análisis de README.md)</h3>
               </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        {/* Action Header for Objectives & AI Analysis */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-          <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
-            <Target size={18} className="text-primary" />
-            Objetivos del Proyecto
-          </h2>
-          <div className="flex items-center gap-2">
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={handleAnalyze}
-              disabled={analyzing}
-              className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shadow-sm hover:bg-slate-800 transition-colors disabled:opacity-50"
-            >
-              <Sparkles size={14} className={`text-amber-400 ${analyzing ? 'animate-spin' : ''}`} />
-              {analyzing ? 'Leyendo Commits & Analizando IA...' : 'Sincronizar y Analizar con IA'}
-            </motion.button>
-
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowCreate(true)}
-              className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shadow-sm"
-            >
-              <Plus size={14} />
-              Nuevo Objetivo
-            </motion.button>
+              {loadingReadme && <span className="text-[10px] text-amber-400/80 animate-pulse">Analizando README...</span>}
+            </div>
+            {readmeSummary ? (
+              <p className="text-xs text-slate-300 leading-relaxed font-sans pt-1 border-t border-slate-800">
+                {readmeSummary}
+              </p>
+            ) : !loadingReadme ? (
+              <p className="text-xs text-slate-400 italic pt-1">
+                Haz clic en Sincronizar para escanear el README.md del repositorio de GitHub.
+              </p>
+            ) : null}
           </div>
-        </div>
-
-        {analysisMessage && (
-          <motion.div
-            initial={{ opacity: 0, y: -5 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-center justify-between"
-          >
-            <span>{analysisMessage}</span>
-            <button onClick={() => setAnalysisMessage(null)} className="text-blue-600 hover:text-blue-900">
-              <X size={14} />
-            </button>
-          </motion.div>
         )}
 
-        <AnimatePresence>
-          {showCreate && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
+        {/* Documents & File Attachments Section */}
+        <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Paperclip size={18} className="text-primary" />
+              <h3 className="text-sm font-semibold text-foreground">Documentos y Archivos Adjuntos ({documents.length})</h3>
+            </div>
+            <motion.button
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setShowUploadDoc(true)}
+              className="text-xs text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1.5"
             >
-              <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
+              <Upload size={14} /> Adjuntar Documento
+            </motion.button>
+          </div>
+
+          <AnimatePresence>
+            {showUploadDoc && (
+              <motion.div
+                initial={{ opacity: 0, y: -5 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -5 }}
+                className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3"
+              >
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Crear Objetivo</h3>
-                  <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
-                    <X size={16} />
+                  <h4 className="text-xs font-semibold text-slate-900">Vincular Documento al Proyecto</h4>
+                  <button onClick={() => setShowUploadDoc(false)} className="text-muted-foreground hover:text-foreground">
+                    <X size={14} />
                   </button>
                 </div>
-                {objCreateError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700">
-                    {objCreateError}
-                  </div>
-                )}
                 <input
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && createObjective()}
-                  placeholder="¿Qué objetivo o funcionalidad quieres lograr?"
-                  className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  value={uploadName}
+                  onChange={(e) => setUploadName(e.target.value)}
+                  placeholder="Nombre del documento (ej. Especificaciones_Tecnicas.pdf)"
+                  className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
                   autoFocus
                 />
-                <textarea
-                  value={newDesc}
-                  onChange={(e) => setNewDesc(e.target.value)}
-                  placeholder="Añade más detalles o especificaciones..."
-                  className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none h-20"
+                <input
+                  value={uploadUrl}
+                  onChange={(e) => setUploadUrl(e.target.value)}
+                  placeholder="URL o enlace del archivo (opcional)"
+                  className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
                 />
-                <div className="flex gap-3 pt-1">
-                  <motion.button
-                    whileTap={{ scale: 0.97 }}
-                    onClick={createObjective}
-                    className="bg-primary text-white px-5 py-2 rounded-xl text-sm font-medium"
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleUploadDocument}
+                    className="bg-primary text-white px-4 py-1.5 rounded-lg text-xs font-medium"
                   >
-                    Crear Objetivo
-                  </motion.button>
-                  <button onClick={() => setShowCreate(false)} className="text-muted-foreground px-5 py-2 rounded-xl text-sm hover:bg-gray-50">
-                    Cancelar
+                    Guardar Archivo
+                  </button>
+                  <button onClick={() => setShowUploadDoc(false)} className="text-muted-foreground px-4 py-1.5 rounded-lg text-xs">Cancelar</button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {documents.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic py-2 text-center">No hay documentos o especificaciones adjuntas todavía.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+              {documents.map((doc) => (
+                <div key={doc.id} className="flex items-center justify-between p-3 bg-gray-50 border border-gray-200 rounded-xl group">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 bg-blue-100 text-blue-700 rounded-lg flex items-center justify-center font-bold text-[10px] shrink-0">
+                      {doc.fileType || 'DOC'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-slate-800 truncate">{doc.fileName}</p>
+                      <p className="text-[10px] text-slate-500">Adjuntado recientemente</p>
+                    </div>
+                  </div>
+                  <button onClick={() => deleteDocument(doc.id)} className="text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">
+                    <Trash2 size={14} />
                   </button>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Objectives Section with View Mode Toggle */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
+                <Target size={18} className="text-primary" />
+                Objetivos del Proyecto
+              </h2>
+
+              {/* View Switcher: Cards vs Excel Spreadsheet */}
+              <div className="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200">
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    viewMode === 'cards' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <LayoutGrid size={13} /> Tarjetas
+                </button>
+                <button
+                  onClick={() => setViewMode('excel')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                    viewMode === 'excel' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Table size={13} className="text-emerald-600" /> Excel / Spreadsheet
+                </button>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {viewMode === 'excel' && (
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={exportToExcelCSV}
+                  className="bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm hover:bg-emerald-800"
+                >
+                  <Download size={14} /> Exportar Excel (.csv)
+                </motion.button>
+              )}
+
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={handleAnalyze}
+                disabled={analyzing}
+                className="bg-slate-900 text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shadow-sm hover:bg-slate-800 transition-colors disabled:opacity-50"
+              >
+                <Sparkles size={14} className={`text-amber-400 ${analyzing ? 'animate-spin' : ''}`} />
+                {analyzing ? 'Analizando Commits...' : 'Sincronizar y Analizar'}
+              </motion.button>
+
+              <motion.button
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setShowCreate(true)}
+                className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-2 shadow-sm"
+              >
+                <Plus size={14} />
+                Nuevo Objetivo
+              </motion.button>
+            </div>
+          </div>
+
+          {analysisMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: -5 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800 flex items-center justify-between"
+            >
+              <span>{analysisMessage}</span>
+              <button onClick={() => setAnalysisMessage(null)} className="text-blue-600 hover:text-blue-900">
+                <X size={14} />
+              </button>
             </motion.div>
           )}
-        </AnimatePresence>
 
-        {objectives.length === 0 ? (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-white border border-border rounded-2xl flex flex-col items-center justify-center py-14 shadow-sm"
-          >
-            <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
-              <Target className="text-primary" size={28} />
-            </div>
-            <h3 className="text-base font-semibold text-foreground mb-1">Sin objetivos asignados</h3>
-            <p className="text-xs text-muted-foreground mb-4 text-center max-w-sm">
-              Crea tu primer objetivo en este proyecto y vincula un repositorio para que la IA escanee los commits y evalúe su progreso.
-            </p>
-            <motion.button
-              whileTap={{ scale: 0.98 }}
-              onClick={() => setShowCreate(true)}
-              className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm"
-            >
-              <Plus size={14} />
-              Crear Objetivo
-            </motion.button>
-          </motion.div>
-        ) : (
-          <div className="space-y-4">
-            {objectives.map((obj, i) => {
-              const status = statusConfig[obj.status] || statusConfig.pending;
-              return (
-                <motion.div
-                  key={obj.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.05 }}
-                  className="bg-white border border-border hover:border-primary/30 rounded-2xl p-5 shadow-sm transition-all group space-y-3"
+          {/* VIEW MODE: CARDS */}
+          {viewMode === 'cards' ? (
+            objectives.length === 0 ? (
+              <div className="bg-white border border-border rounded-2xl flex flex-col items-center justify-center py-14 shadow-sm">
+                <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
+                  <Target className="text-primary" size={28} />
+                </div>
+                <h3 className="text-base font-semibold text-foreground mb-1">Sin objetivos asignados</h3>
+                <p className="text-xs text-muted-foreground mb-4 text-center max-w-sm">
+                  Crea tu primer objetivo para evaluarlo contra los commits del repositorio.
+                </p>
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setShowCreate(true)}
+                  className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm"
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${status.bg}`}>
-                        <span className={status.color}>{status.icon}</span>
+                  <Plus size={14} /> Crear Objetivo
+                </motion.button>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {objectives.map((obj, i) => {
+                  const status = statusConfig[obj.status] || statusConfig.pending;
+                  return (
+                    <motion.div
+                      key={obj.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: i * 0.05 }}
+                      className="bg-white border border-border hover:border-primary/30 rounded-2xl p-5 shadow-sm transition-all group space-y-3"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-start gap-3">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${status.bg}`}>
+                            <span className={status.color}>{status.icon}</span>
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-semibold text-foreground">{obj.title}</h3>
+                            {obj.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5">{obj.description}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setDeletingObjId(obj.id)}
+                            className="text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 ${status.bg} ${status.color}`}>
+                            {status.icon}
+                            {status.label}
+                          </span>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-foreground">{obj.title}</h3>
-                        {obj.description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">{obj.description}</p>
+
+                      <div className="pl-11 space-y-2">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${obj.progress}%` }}
+                              transition={{ duration: 0.6 }}
+                              className="h-full bg-primary rounded-full"
+                            />
+                          </div>
+                          <span className="text-xs font-semibold text-foreground font-mono">{obj.progress}%</span>
+                        </div>
+
+                        {obj.summary && (
+                          <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-700 space-y-1">
+                            <p className="font-semibold text-slate-900 flex items-center gap-1">
+                              <Sparkles size={12} className="text-amber-500" /> Resumen de progreso (IA):
+                            </p>
+                            <p className="text-slate-600 leading-relaxed">{obj.summary}</p>
+                          </div>
                         )}
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setDeletingObjId(obj.id)}
-                        className="text-muted-foreground hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                      <span className={`text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1 ${status.bg} ${status.color}`}>
-                        {status.icon}
-                        {status.label}
-                      </span>
-                    </div>
-                  </div>
-
-                  {deletingObjId === obj.id && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="p-3 bg-red-50 border border-red-200 rounded-xl"
-                    >
-                      <p className="text-xs text-red-700 mb-2">¿Eliminar este objetivo?</p>
-                      <div className="flex gap-2">
-                        <motion.button
-                          whileTap={{ scale: 0.97 }}
-                          onClick={() => deleteObjective(obj.id)}
-                          className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium"
-                        >
-                          Eliminar
-                        </motion.button>
-                        <button onClick={() => setDeletingObjId(null)} className="text-red-600 px-3 py-1.5 rounded-lg text-xs hover:bg-red-100">Cancelar</button>
-                      </div>
                     </motion.div>
-                  )}
-
-                  {/* Progress Bar & Percentage */}
-                  <div className="pl-11 space-y-2">
-                    <div className="flex items-center gap-3">
-                      <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${obj.progress}%` }}
-                          transition={{ duration: 0.6 }}
-                          className="h-full bg-primary rounded-full"
-                        />
-                      </div>
-                      <span className="text-xs font-semibold text-foreground font-mono">{obj.progress}%</span>
-                    </div>
-
-                    {/* AI Analysis Summary if present */}
-                    {obj.summary && (
-                      <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl text-xs text-slate-700 space-y-1">
-                        <p className="font-semibold text-slate-900 flex items-center gap-1">
-                          <Sparkles size={12} className="text-amber-500" /> Resumen de progreso (IA):
-                        </p>
-                        <p className="text-slate-600 leading-relaxed">{obj.summary}</p>
-                      </div>
-                    )}
-
-                    {obj.tags?.length > 0 && (
-                      <div className="flex gap-2 pt-1">
-                        {obj.tags.map((tag: string) => (
-                          <span key={tag} className="text-[10px] text-primary bg-primary/10 px-2.5 py-0.5 rounded-full font-medium">{tag}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        )}
+                  );
+                })}
+              </div>
+            )
+          ) : (
+            /* VIEW MODE: EXCEL SPREADSHEET GRID */
+            <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs font-sans">
+                  <thead>
+                    <tr className="bg-slate-900 text-white font-semibold border-b border-slate-800">
+                      <th className="p-3 w-12 text-center border-r border-slate-800 font-mono text-[10px]">#</th>
+                      <th className="p-3 border-r border-slate-800 min-w-[200px]">Título del Objetivo</th>
+                      <th className="p-3 border-r border-slate-800 min-w-[220px]">Descripción / Notas</th>
+                      <th className="p-3 border-r border-slate-800 w-32">Estado</th>
+                      <th className="p-3 border-r border-slate-800 w-28">Progreso</th>
+                      <th className="p-3 min-w-[240px]">Resumen de IA (Commits)</th>
+                      <th className="p-3 w-10 text-center"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {objectives.map((obj, index) => {
+                      const status = statusConfig[obj.status] || statusConfig.pending;
+                      return (
+                        <tr key={obj.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="p-3 text-center border-r border-gray-200 text-slate-400 font-mono text-[11px] font-semibold">
+                            {index + 1}
+                          </td>
+                          <td className="p-3 border-r border-gray-200 font-medium text-slate-900">
+                            {obj.title}
+                          </td>
+                          <td className="p-3 border-r border-gray-200 text-slate-600">
+                            {obj.description || <span className="text-slate-300 italic">Sin descripción</span>}
+                          </td>
+                          <td className="p-3 border-r border-gray-200">
+                            <span className={`text-[10px] font-semibold px-2 py-1 rounded-md flex items-center gap-1 w-fit ${status.bg} ${status.color}`}>
+                              {status.label}
+                            </span>
+                          </td>
+                          <td className="p-3 border-r border-gray-200 font-mono font-semibold text-slate-800">
+                            <div className="flex items-center gap-2">
+                              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500" style={{ width: `${obj.progress || 0}%` }} />
+                              </div>
+                              <span>{obj.progress}%</span>
+                            </div>
+                          </td>
+                          <td className="p-3 text-slate-600 leading-relaxed text-[11px]">
+                            {obj.summary || <span className="text-slate-400 italic">Pendiente de sincronizar</span>}
+                          </td>
+                          <td className="p-3 text-center">
+                            <button onClick={() => deleteObjective(obj.id)} className="text-slate-400 hover:text-red-500">
+                              <Trash2 size={13} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

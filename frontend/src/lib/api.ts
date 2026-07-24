@@ -55,6 +55,8 @@ export const api = {
       fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
     analyze: (id: string) =>
       fetch(`${API_BASE}/projects/${id}/analyze`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
+    getReadmeSummary: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/readme`, { headers: getHeaders() }).then(handleResponse),
   },
 
   objectives: {
@@ -78,7 +80,20 @@ export const api = {
         body: JSON.stringify({ projectId, owner, name, defaultBranch, monitoredBranches }),
       }).then(handleResponse),
   },
+  documents: {
+    listByProject: (projectId: string) =>
+      fetch(`${API_BASE}/documents/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
+    create: (projectId: string, fileName: string, fileType: string, fileSize?: number, contentUrl?: string, repoId?: string) =>
+      fetch(`${API_BASE}/documents`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ projectId, fileName, fileType, fileSize, contentUrl, repoId }),
+      }).then(handleResponse),
+    delete: (id: string) =>
+      fetch(`${API_BASE}/documents/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
+  },
 };
+
 
 
 

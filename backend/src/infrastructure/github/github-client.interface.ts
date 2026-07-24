@@ -13,5 +13,7 @@ export interface IGitHubClient {
   getReleases(owner: string, repo: string): Promise<IRelease[]>;
   createWebhook(owner: string, repo: string, callbackUrl: string, secret: string): Promise<string>;
   deleteWebhook(owner: string, repo: string, webhookId: string): Promise<void>;
+  getReadme(owner: string, repo: string, userToken?: string): Promise<string | null>;
 }
+
 

@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
-import { GitBranch, ExternalLink, Search, RefreshCw, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X } from 'lucide-react';
+import { GitBranch, ExternalLink, Search, RefreshCw, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X, Folder } from 'lucide-react';
+import Link from 'next/link';
 
 interface GitHubRepo {
   id: number;
@@ -27,16 +28,17 @@ export default function RepositoriesPage() {
   const [usernameInput, setUsernameInput] = useState('');
   const [visibleCount, setVisibleCount] = useState(6);
 
+  // Map repo fullName -> { projectId, projectName }
+  const [linkedMap, setLinkedMap] = useState<Record<string, { projectId: string; projectName: string }>>({});
+
   // Connect modal state
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
-  const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [connecting, setConnecting] = useState(false);
   const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
 
-  const loadRepositories = async (username?: string) => {
+  const loadData = async (username?: string) => {
     setLoading(true);
     setError(null);
     setVisibleCount(6);
@@ -47,6 +49,27 @@ export default function RepositoriesPage() {
       } else if (res.message) {
         setError(res.message);
       }
+
+      // Load all linked repos across all user projects to build linkedMap
+      if (user) {
+        const wsRes = await api.workspaces.list(user.id);
+        const wss = wsRes.workspaces || [];
+        const newMap: Record<string, { projectId: string; projectName: string }> = {};
+
+        for (const ws of wss) {
+          const projRes = await api.projects.list(ws.id);
+          const projs = projRes.projects || [];
+          for (const p of projs) {
+            const repoRes = await api.repositories.listByProject(p.id);
+            const connected = repoRes.repositories || [];
+            for (const r of connected) {
+              const key = (r.fullName || `${r.owner}/${r.name}`).toLowerCase();
+              newMap[key] = { projectId: p.id, projectName: p.name };
+            }
+          }
+        }
+        setLinkedMap(newMap);
+      }
     } catch (e: any) {
       setError(e.message || 'Error al conectar con la API de GitHub');
     } finally {
@@ -55,8 +78,8 @@ export default function RepositoriesPage() {
   };
 
   useEffect(() => {
-    loadRepositories();
-  }, []);
+    loadData();
+  }, [user]);
 
   const openConnectModal = async (repo: GitHubRepo) => {
     setSelectedRepo(repo);
@@ -65,25 +88,16 @@ export default function RepositoriesPage() {
     try {
       const wsRes = await api.workspaces.list(user.id);
       const wss = wsRes.workspaces || [];
-      setWorkspaces(wss);
-      if (wss.length > 0) {
-        setSelectedWorkspaceId(wss[0].id);
-        const projRes = await api.projects.list(wss[0].id);
+      const allProjectsList: any[] = [];
+      for (const ws of wss) {
+        const projRes = await api.projects.list(ws.id);
         const projs = projRes.projects || [];
-        setProjects(projs);
-        if (projs.length > 0) setSelectedProjectId(projs[0].id);
+        allProjectsList.push(...projs);
       }
-    } catch {}
-  };
-
-  const handleWorkspaceChange = async (wsId: string) => {
-    setSelectedWorkspaceId(wsId);
-    setSelectedProjectId('');
-    try {
-      const projRes = await api.projects.list(wsId);
-      const projs = projRes.projects || [];
-      setProjects(projs);
-      if (projs.length > 0) setSelectedProjectId(projs[0].id);
+      setProjects(allProjectsList);
+      if (allProjectsList.length > 0) {
+        setSelectedProjectId(allProjectsList[0].id);
+      }
     } catch {}
   };
 
@@ -102,7 +116,8 @@ export default function RepositoriesPage() {
       setTimeout(() => {
         setSelectedRepo(null);
         setConnectSuccess(null);
-      }, 1800);
+        loadData(); // Refresh linked state badges
+      }, 1500);
     } catch (e: any) {
       alert(e.message || 'Error al vincular el repositorio');
     } finally {
@@ -113,7 +128,7 @@ export default function RepositoriesPage() {
   const handleSearchUser = (e: React.FormEvent) => {
     e.preventDefault();
     if (usernameInput.trim()) {
-      loadRepositories(usernameInput.trim());
+      loadData(usernameInput.trim());
     }
   };
 
@@ -136,14 +151,13 @@ export default function RepositoriesPage() {
             <h1 className="text-2xl font-bold text-foreground">Repositorios de GitHub</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Explora tus repositorios conectados y vincúlalos a un Proyecto para que la IA analice su progreso.
+            Explora tus repositorios y vincúlalos a tus proyectos para análisis automático con IA.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => loadRepositories(usernameInput.trim() || undefined)}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-border rounded-xl text-sm font-medium text-foreground hover:bg-gray-50 transition-colors shadow-sm disabled:opacity-50"
+            onClick={() => loadData(usernameInput ? usernameInput : undefined)}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-border hover:bg-gray-50 rounded-xl text-sm font-medium text-foreground transition-colors shadow-sm"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Actualizar
@@ -212,70 +226,84 @@ export default function RepositoriesPage() {
           {/* Scrollable Container */}
           <div className="max-h-[calc(100vh-280px)] overflow-y-auto pr-2 space-y-4 scrollbar-thin scrollbar-thumb-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {visibleRepos.map((repo, i) => (
-                <motion.div
-                  key={repo.id}
-                  initial={{ opacity: 0, y: 15 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: (i % 6) * 0.04 }}
-                  className="bg-white border border-border hover:border-primary/40 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex items-center gap-2 truncate">
-                        <FolderGit2 size={18} className="text-primary shrink-0" />
-                        <h3 className="font-semibold text-foreground text-base truncate group-hover:text-primary transition-colors">
-                          {repo.fullName}
-                        </h3>
+              {visibleRepos.map((repo, i) => {
+                const linkedInfo = linkedMap[repo.fullName.toLowerCase()];
+                return (
+                  <motion.div
+                    key={repo.id}
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: (i % 6) * 0.04 }}
+                    className="bg-white border border-border hover:border-primary/40 rounded-2xl p-5 shadow-sm hover:shadow-md transition-all flex flex-col justify-between group"
+                  >
+                    <div className="space-y-2">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-2 truncate">
+                          <FolderGit2 size={18} className="text-primary shrink-0" />
+                          <h3 className="font-semibold text-foreground text-base truncate group-hover:text-primary transition-colors">
+                            {repo.fullName}
+                          </h3>
+                        </div>
+                        <span
+                          className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0 ${
+                            repo.isPrivate
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                              : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          }`}
+                        >
+                          {repo.isPrivate ? <Lock size={10} /> : <Globe size={10} />}
+                          {repo.isPrivate ? 'Privado' : 'Público'}
+                        </span>
                       </div>
-                      <span
-                        className={`inline-flex items-center gap-1 text-[11px] font-medium px-2.5 py-0.5 rounded-full shrink-0 ${
-                          repo.isPrivate
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                        }`}
-                      >
-                        {repo.isPrivate ? <Lock size={10} /> : <Globe size={10} />}
-                        {repo.isPrivate ? 'Privado' : 'Público'}
-                      </span>
+
+                      {repo.description ? (
+                        <p className="text-xs text-muted-foreground line-clamp-2">{repo.description}</p>
+                      ) : (
+                        <p className="text-xs text-muted-foreground/60 italic">Sin descripción</p>
+                      )}
                     </div>
 
-                    {repo.description ? (
-                      <p className="text-xs text-muted-foreground line-clamp-2">{repo.description}</p>
-                    ) : (
-                      <p className="text-xs text-muted-foreground/60 italic">Sin descripción</p>
-                    )}
-                  </div>
+                    <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
+                      <div className="flex items-center gap-2">
+                        {linkedInfo ? (
+                          <Link
+                            href={`/projects/${linkedInfo.projectId}`}
+                            className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl font-semibold inline-flex items-center gap-1.5 transition-colors shadow-2xs"
+                          >
+                            <Check size={14} className="text-emerald-600" />
+                            <span>Vinculado a: {linkedInfo.projectName}</span>
+                          </Link>
+                        ) : (
+                          <button
+                            onClick={() => openConnectModal(repo)}
+                            className="bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 rounded-xl font-medium inline-flex items-center gap-1.5 transition-colors"
+                          >
+                            <LinkIcon size={14} />
+                            Vincular a Proyecto
+                          </button>
+                        )}
+                      </div>
 
-                  <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-muted-foreground">
-                    <button
-                      onClick={() => openConnectModal(repo)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded-lg transition-colors"
-                    >
-                      <LinkIcon size={12} />
-                      Vincular a Proyecto
-                    </button>
-
-                    <a
-                      href={repo.htmlUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium"
-                    >
-                      Ver en GitHub
-                      <ExternalLink size={12} />
-                    </a>
-                  </div>
-                </motion.div>
-              ))}
+                      <a
+                        href={repo.htmlUrl || `https://github.com/${repo.fullName}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-foreground font-medium inline-flex items-center gap-1 hover:underline text-[11px]"
+                      >
+                        Ver en GitHub <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
 
-            {/* Load More Button */}
+            {/* Ver Más Button for Infinite Scroll Effect */}
             {visibleCount < filtered.length && (
-              <div className="text-center pt-4 pb-2">
+              <div className="flex justify-center pt-4 pb-2">
                 <button
                   onClick={() => setVisibleCount((prev) => prev + 6)}
-                  className="px-6 py-2.5 bg-white border border-border hover:bg-gray-50 text-foreground font-medium rounded-xl text-sm transition-all shadow-sm hover:shadow"
+                  className="px-6 py-2.5 bg-white border border-border hover:bg-gray-50 rounded-xl text-xs font-semibold text-foreground transition-all shadow-sm flex items-center gap-2"
                 >
                   Ver más ({filtered.length - visibleCount} restantes)
                 </button>
@@ -284,20 +312,13 @@ export default function RepositoriesPage() {
           </div>
         </div>
       ) : (
-        /* Empty State */
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="bg-white border border-border rounded-2xl p-12 text-center shadow-sm space-y-3"
-        >
-          <FolderGit2 className="mx-auto text-muted-foreground/50" size={40} />
-          <h3 className="text-base font-semibold text-foreground">No se encontraron repositorios</h3>
+        <div className="bg-white border border-border rounded-2xl p-12 text-center space-y-3 shadow-sm">
+          <FolderGit2 className="mx-auto text-muted-foreground" size={32} />
+          <h3 className="font-semibold text-foreground">No se encontraron repositorios</h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            {search
-              ? 'Prueba modificando los términos de búsqueda.'
-              : 'Verifica tu token de GitHub en el backend o busca repositorios públicos de un usuario arriba.'}
+            Prueba buscando por usuario de GitHub o verifica la configuración de tu token.
           </p>
-        </motion.div>
+        </div>
       )}
 
       {/* Connect Modal */}
@@ -313,7 +334,7 @@ export default function RepositoriesPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <LinkIcon className="text-primary" size={20} />
-                  <h3 className="font-semibold text-foreground text-base">Vincular Repositorio</h3>
+                  <h3 className="font-semibold text-foreground text-base">Vincular Repositorio (1:1)</h3>
                 </div>
                 <button onClick={() => setSelectedRepo(null)} className="text-muted-foreground hover:text-foreground">
                   <X size={18} />
@@ -321,7 +342,7 @@ export default function RepositoriesPage() {
               </div>
 
               <p className="text-xs text-muted-foreground">
-                Vincula <strong className="text-foreground">{selectedRepo.fullName}</strong> a un Proyecto para que la IA analice sus commits y evalúe tus objetivos.
+                Vincula <strong className="text-foreground">{selectedRepo.fullName}</strong> a un Proyecto exclusivo. Cada proyecto gestiona 1 repositorio.
               </p>
 
               {connectSuccess ? (
@@ -332,27 +353,12 @@ export default function RepositoriesPage() {
               ) : (
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Workspace</label>
-                    <select
-                      value={selectedWorkspaceId}
-                      onChange={(e) => handleWorkspaceChange(e.target.value)}
-                      className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
-                    >
-                      {workspaces.map((ws) => (
-                        <option key={ws.id} value={ws.id}>
-                          {ws.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1">Proyecto</label>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Proyecto</label>
                     {projects.length > 0 ? (
                       <select
                         value={selectedProjectId}
                         onChange={(e) => setSelectedProjectId(e.target.value)}
-                        className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                        className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         {projects.map((p) => (
                           <option key={p.id} value={p.id}>
@@ -362,7 +368,7 @@ export default function RepositoriesPage() {
                       </select>
                     ) : (
                       <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
-                        Este workspace no tiene proyectos aún. Crea un proyecto primero.
+                        No se encontraron proyectos activos. Crea un proyecto primero.
                       </p>
                     )}
                   </div>

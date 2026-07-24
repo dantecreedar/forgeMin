@@ -163,3 +163,15 @@ export class InMemoryKnowledgeRepo extends InMemoryRepo<KnowledgeEntry> implemen
     return this.findBy('projectId', projectId).filter((e) => e.question.includes(query));
   }
 }
+
+import { IDocumentRepository } from '../../domain/document/document.repository.interface';
+import { DocumentAttachment } from '../../domain/document/document.entity';
+
+@Injectable()
+export class InMemoryDocumentRepo extends InMemoryRepo<DocumentAttachment> implements IDocumentRepository {
+  async findByProjectId(projectId: string): Promise<DocumentAttachment[]> {
+    return this.findBy('projectId', projectId);
+  }
+}
+
+

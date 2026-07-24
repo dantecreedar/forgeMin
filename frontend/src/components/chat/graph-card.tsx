@@ -77,15 +77,28 @@ export function renderProjectGraph(project: any, onNavigate?: () => void) {
             <p className="text-[10px] text-slate-500 italic pl-2">Ningún repositorio vinculado</p>
           ) : (
             <div className="space-y-1.5 pl-2 border-l border-slate-800/80">
-              {repos.map((repo: any) => (
-                <div key={repo.id} className="bg-slate-800/60 border border-slate-700/50 rounded-lg p-2 text-[10px] flex items-center justify-between">
-                  <span className="font-mono text-purple-300 truncate max-w-[150px]">{repo.fullName || repo.name}</span>
-                  <span className="text-[9px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-mono flex items-center gap-0.5">
-                    <GitBranch size={9} /> {repo.defaultBranch || 'main'}
-                  </span>
-                </div>
-              ))}
+              {repos.map((repo: any) => {
+                const fullName = repo.fullName || repo.name;
+                const repoUrl = `https://github.com/${fullName}`;
+                return (
+                  <a
+                    key={repo.id}
+                    href={repoUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="bg-slate-800/80 hover:bg-slate-800 border border-slate-700/60 rounded-lg p-2 text-[10px] flex items-center justify-between transition-colors group"
+                  >
+                    <span className="font-mono text-purple-300 group-hover:text-purple-200 truncate max-w-[150px] flex items-center gap-1">
+                      {fullName} <ExternalLink size={9} className="opacity-60 group-hover:opacity-100" />
+                    </span>
+                    <span className="text-[9px] bg-slate-700 text-slate-300 px-1.5 py-0.5 rounded font-mono flex items-center gap-0.5">
+                      <GitBranch size={9} /> {repo.defaultBranch || 'main'}
+                    </span>
+                  </a>
+                );
+              })}
             </div>
+
           )}
         </div>
       </div>

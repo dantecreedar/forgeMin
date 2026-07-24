@@ -23,7 +23,12 @@ export class RepositoryApplicationService {
 
 
   async connect(projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]): Promise<GitHubRepository> {
-    const project = await this.projectService.findById(projectId);
+    await this.projectService.findById(projectId);
+    const existing = await this.repositoryRepository.findByProjectId(projectId);
+    for (const oldRepo of existing) {
+      await this.repositoryRepository.delete(oldRepo.id);
+    }
+
     const repo = new GitHubRepository(
       uuidv4(), projectId, owner, name, `${owner}/${name}`,
       defaultBranch, monitoredBranches, undefined, undefined,
@@ -33,6 +38,7 @@ export class RepositoryApplicationService {
     await this.projectService.addRepository(projectId, repo.id);
     return repo;
   }
+
 
   async findById(id: string): Promise<GitHubRepository> {
     const repo = await this.repositoryRepository.findById(id);

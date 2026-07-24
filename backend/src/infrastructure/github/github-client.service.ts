@@ -167,7 +167,22 @@ export class GitHubClientService implements IGitHubClient {
     await this.octokit.repos.deleteWebhook({ owner, repo, hook_id: parseInt(webhookId, 10) });
   }
 
+  async getReadme(owner: string, repo: string, userToken?: string): Promise<string | null> {
+    try {
+      const activeToken = userToken || process.env.GITHUB_TOKEN || process.env.GITHUB_API;
+      const octokit = new Octokit({ auth: activeToken });
+      const { data } = await octokit.repos.getReadme({ owner, repo });
+      if ('content' in data && data.content) {
+        return Buffer.from(data.content, 'base64').toString('utf-8');
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   private async getDefaultBranch(owner: string, repo: string): Promise<string> {
+
     const { data } = await this.octokit.repos.get({ owner, repo });
     return data.default_branch;
   }

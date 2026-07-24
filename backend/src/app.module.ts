@@ -59,6 +59,11 @@ import { FirestoreSprintRepository } from './infrastructure/persistence/firestor
 import { FirestoreNotificationRepository } from './infrastructure/persistence/firestore-notification.repository';
 import { FirestoreKnowledgeRepository } from './infrastructure/persistence/firestore-knowledge.repository';
 
+import { DocumentApplicationService } from './application/document/document.service';
+import { DocumentController } from './presentation/controllers/document.controller';
+import { DOCUMENT_REPOSITORY } from './domain/document/document.repository.interface';
+import { FirestoreDocumentRepository } from './infrastructure/persistence/firestore-document.repository';
+
 const firestoreProviders = [
   { provide: AUTH_REPOSITORY, useClass: FirestoreAuthRepository },
   { provide: WORKSPACE_REPOSITORY, useClass: FirestoreWorkspaceRepository },
@@ -71,6 +76,7 @@ const firestoreProviders = [
   { provide: SPRINT_REPOSITORY, useClass: FirestoreSprintRepository },
   { provide: NOTIFICATION_REPOSITORY, useClass: FirestoreNotificationRepository },
   { provide: KNOWLEDGE_REPOSITORY, useClass: FirestoreKnowledgeRepository },
+  { provide: DOCUMENT_REPOSITORY, useClass: FirestoreDocumentRepository },
 ];
 
 @Module({
@@ -87,6 +93,7 @@ const firestoreProviders = [
     RepositoryController,
     ChatController,
     EngineController,
+    DocumentController,
   ],
   providers: [
     AuthApplicationService,
@@ -94,6 +101,7 @@ const firestoreProviders = [
     ProjectApplicationService,
     RepositoryApplicationService,
     ObjectiveApplicationService,
+    DocumentApplicationService,
     AIEngineService,
     SyncEngineService,
 
@@ -113,3 +121,4 @@ const firestoreProviders = [
   ],
 })
 export class AppModule {}
+
