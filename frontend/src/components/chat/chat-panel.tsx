@@ -2,9 +2,9 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Folder, Target, FolderGit2, CheckCircle, Clock, AlertCircle, ExternalLink, Sparkles, MessageSquare, X, Send } from 'lucide-react';
-import Link from 'next/link';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Sparkles, MessageSquare, X, Send } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { GraphCard } from './graph-card';
 
 interface Message {
   id: string;
@@ -61,108 +61,6 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
     }
   };
 
-  const renderCard = (payload: any) => {
-    if (!payload || !payload.item) return null;
-    const { entity, item, type } = payload;
-
-    if (entity === 'project') {
-      return (
-        <div className="mt-2.5 bg-white border border-blue-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 shrink-0">
-              <Folder size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-semibold uppercase text-blue-600 tracking-wider">Proyecto Creado</span>
-              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.name}</h4>
-            </div>
-          </div>
-          {item.description && (
-            <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">{item.description}</p>
-          )}
-          <Link
-            href={`/projects/${item.id}`}
-            onClick={() => setOpen(false)}
-            className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline pt-1"
-          >
-            Ver Proyecto <ExternalLink size={12} />
-          </Link>
-        </div>
-      );
-    }
-
-    if (entity === 'objective') {
-      return (
-        <div className="mt-2.5 bg-white border border-emerald-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 shrink-0">
-              <Target size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-semibold uppercase text-emerald-600 tracking-wider">Objetivo Registrado</span>
-              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.title}</h4>
-            </div>
-          </div>
-          {item.description && (
-            <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">{item.description}</p>
-          )}
-          <div className="flex items-center gap-2 pt-1">
-            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${item.progress || 0}%` }} />
-            </div>
-            <span className="text-[10px] font-semibold text-emerald-700 font-mono">{item.progress || 0}%</span>
-          </div>
-        </div>
-      );
-    }
-
-    if (entity === 'github_repo' || entity === 'repository') {
-      return (
-        <div className="mt-2.5 bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-slate-700 shrink-0">
-              <FolderGit2 size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-semibold uppercase text-slate-600 tracking-wider">
-                {type === 'connected' ? 'Repositorio Vinculado' : 'Repositorio GitHub'}
-              </span>
-              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.fullName || item.name}</h4>
-            </div>
-          </div>
-          {item.defaultBranch && (
-            <p className="text-[10px] text-slate-500 font-mono">Rama: {item.defaultBranch}</p>
-          )}
-        </div>
-      );
-    }
-
-    if (entity === 'workspace') {
-      return (
-        <div className="mt-2.5 bg-white border border-purple-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
-          <div className="flex items-center gap-2">
-            <div className="w-7 h-7 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600 shrink-0">
-              <Folder size={16} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-semibold uppercase text-purple-600 tracking-wider">Workspace Creado</span>
-              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.name}</h4>
-            </div>
-          </div>
-          <Link
-            href="/workspaces"
-            onClick={() => setOpen(false)}
-            className="inline-flex items-center gap-1.5 text-xs text-purple-600 font-medium hover:underline pt-1"
-          >
-            Ir a Workspaces <ExternalLink size={12} />
-          </Link>
-        </div>
-      );
-    }
-
-    return null;
-  };
-
   if (!open) {
     return (
       <motion.button
@@ -182,7 +80,7 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
       initial={{ opacity: 0, scale: 0.95, y: 10 }}
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.95, y: 10 }}
-      className="fixed bottom-6 right-6 w-84 sm:w-96 h-[460px] border border-border bg-white shadow-2xl flex flex-col z-50 rounded-2xl overflow-hidden"
+      className="fixed bottom-6 right-6 w-84 sm:w-96 h-[480px] border border-border bg-white shadow-2xl flex flex-col z-50 rounded-2xl overflow-hidden"
     >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white border-b border-slate-800">
@@ -207,21 +105,23 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
             <p className="text-xs font-semibold text-gray-800">¿En qué puedo ayudarte?</p>
             <p className="text-[11px] text-muted-foreground max-w-[220px] mx-auto leading-relaxed">
               Prueba diciendo: <br />
-              <span className="text-primary italic">"crea un proyecto llamado Backend API"</span>
-              <br />o <span className="text-primary italic">"crea un objetivo llamado Autenticación"</span>
+              <span className="text-primary italic">"muestrame los proyectos"</span>
+              <br />o <span className="text-primary italic">"crea un proyecto llamado App Móvil"</span>
             </p>
           </div>
         )}
 
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+            <div className={`max-w-[90%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
               msg.role === 'user'
                 ? 'bg-primary text-white rounded-br-none shadow-xs'
                 : 'bg-white border border-gray-200 text-slate-800 rounded-bl-none shadow-xs'
             }`}>
               <p>{msg.content}</p>
-              {msg.payload && renderCard(msg.payload)}
+              {msg.payload && (
+                <GraphCard payload={msg.payload} onNavigate={() => setOpen(false)} />
+              )}
             </div>
           </div>
         ))}

@@ -1,23 +1,16 @@
 'use client';
 
-import { useState, useRef, useEffect, ReactNode } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { CheckCircle, AlertCircle, Trash2, Edit } from 'lucide-react';
+import { AlertCircle, Sparkles } from 'lucide-react';
+import { GraphCard } from '@/components/chat/graph-card';
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
-  type?: string;
-  item?: Record<string, unknown>;
+  payload?: any;
 }
-
-const typeConfig: Record<string, { bg: string; border: string }> = {
-  created: { bg: 'bg-emerald-50', border: 'border-emerald-200' },
-  updated: { bg: 'bg-blue-50', border: 'border-blue-200' },
-  deleted: { bg: 'bg-red-50', border: 'border-red-200' },
-  error: { bg: 'bg-red-50', border: 'border-red-200' },
-};
 
 export default function DashboardPage() {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -38,21 +31,23 @@ export default function DashboardPage() {
 
     try {
       const res = await api.engine.command(text);
-      setMessages((prev) => [...prev, {
-        role: 'assistant',
-        content: res.message || 'OK',
-        type: res.type,
-        item: res.item,
-      }]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: 'assistant',
+          content: res.message || 'Operación completada',
+          payload: res,
+        },
+      ]);
     } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error de conexion' }]);
+      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error de conexión con el servidor' }]);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full">
+    <div className="flex-1 flex flex-col h-full bg-gray-50/50">
       <AnimatePresence mode="wait">
         {messages.length === 0 ? (
           <motion.div
@@ -62,21 +57,28 @@ export default function DashboardPage() {
             exit={{ opacity: 0, y: -20 }}
             className="flex-1 flex flex-col items-center justify-center px-4"
           >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-3 text-primary"
+            >
+              <Sparkles size={24} className="text-amber-500" />
+            </motion.div>
             <motion.h1
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="text-2xl font-bold text-primary mb-1"
+              className="text-2xl font-bold text-foreground mb-1"
             >
-              ForgeMind
+              ForgeMind Intelligence
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.2 }}
-              className="text-sm text-muted-foreground mb-8"
+              className="text-xs text-muted-foreground mb-8 text-center max-w-sm leading-relaxed"
             >
-              Motor de Inteligencia
+              Crea proyectos, asigna objetivos y conecta repositorios de GitHub. Escribe libremente con autocorrecion.
             </motion.p>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
@@ -88,8 +90,8 @@ export default function DashboardPage() {
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && send()}
-                placeholder="Crea un proyecto, agrega un objetivo, lista tus workspaces..."
-                className="w-full bg-white border border-border rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none shadow-sm"
+                placeholder="Prueba escribir: 'muestrame los proyectos' o 'crea un proyecto llamado App Movil'"
+                className="w-full bg-white border border-border rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none shadow-sm focus:ring-2 focus:ring-primary/20 transition-all"
               />
             </motion.div>
           </motion.div>
@@ -98,84 +100,63 @@ export default function DashboardPage() {
             key="chat"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            className="flex-1 flex flex-col"
+            className="flex-1 flex flex-col h-full overflow-hidden"
           >
             <div className="flex-1 overflow-y-auto px-4">
               <div className="max-w-2xl mx-auto py-8 space-y-4">
-                {messages.map((msg, i) => {
-                  const cfg = msg.type ? typeConfig[msg.type] : null;
-                  return (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div className="max-w-[80%]">
-                        <motion.div
-                          whileHover={{ scale: 1.01 }}
-                          className={`px-4 py-2.5 text-sm leading-relaxed rounded-2xl ${
-                            msg.role === 'user'
-                              ? 'bg-primary text-white shadow-md'
-                              : 'bg-white text-foreground border border-border shadow-sm'
-                          }`}
-                        >
-                          {msg.content}
-                        </motion.div>
-                        {msg.role === 'assistant' && cfg && msg.type !== 'error' && msg.item && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className={`mt-2 ${cfg.bg} border ${cfg.border} rounded-xl p-3`}
-                          >
-                            <h4 className="text-sm font-medium text-foreground">
-                              {String(msg.item?.title || msg.item?.name || '')}
-                            </h4>
-                            {msg.item?.description ? (
-                              <p className="text-xs text-muted-foreground mt-1">{String(msg.item.description)}</p>
-                            ) : null}
-                          </motion.div>
-                        )}
-                        {msg.type === 'error' && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 5 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            className="mt-2 bg-red-50 border border-red-200 rounded-xl p-3"
-                          >
-                            <div className="flex items-center gap-2">
-                              <AlertCircle size={14} className="text-red-600" />
-                              <span className="text-xs text-red-700">Error</span>
-                            </div>
-                          </motion.div>
-                        )}
+                {messages.map((msg, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div className="max-w-[85%]">
+                      <div
+                        className={`px-4 py-3 text-sm leading-relaxed rounded-2xl ${
+                          msg.role === 'user'
+                            ? 'bg-primary text-white shadow-md rounded-br-none'
+                            : 'bg-white text-foreground border border-border shadow-xs rounded-bl-none'
+                        }`}
+                      >
+                        {msg.content}
                       </div>
-                    </motion.div>
-                  );
-                })}
+
+                      {/* Render Graph Node Cards */}
+                      {msg.payload && (
+                        <GraphCard payload={msg.payload} />
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+
                 {loading && (
                   <motion.div
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
                     className="flex justify-start"
                   >
-                    <div className="bg-white border border-border rounded-2xl p-4 shadow-sm space-y-2 w-64">
-                      <div className="h-3 bg-gray-200 animate-pulse rounded w-3/4" />
-                      <div className="h-3 bg-gray-200 animate-pulse rounded w-1/2" />
+                    <div className="bg-white border border-border rounded-2xl p-4 shadow-xs space-y-2 w-64">
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Sparkles size={14} className="animate-spin text-amber-500" />
+                        Analizando consulta...
+                      </div>
                     </div>
                   </motion.div>
                 )}
                 <div ref={endRef} />
               </div>
             </div>
-            <div className="border-t border-border p-4">
+
+            <div className="border-t border-border p-4 bg-white">
               <div className="max-w-2xl mx-auto">
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && send()}
-                  placeholder="Escribe un mensaje..."
-                  className="w-full bg-white border border-border rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none shadow-sm"
+                  placeholder="Escribe un mensaje o instrucción..."
+                  className="w-full bg-gray-50 border border-border rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none shadow-xs focus:ring-2 focus:ring-primary/20"
                 />
               </div>
             </div>

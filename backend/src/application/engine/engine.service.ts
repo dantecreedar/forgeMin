@@ -23,6 +23,16 @@ export class EngineService {
   private async parseIntent(userId: string, message: string) {
     const systemPrompt = `Eres el motor de inteligencia de ForgeMind. Analiza el mensaje del usuario y determina QUÉ acción quiere realizar.
 
+    IMPORTANTE - AUTOCORRECCIÓN DE TYPOS Y ERRORES DE TIPIO:
+    Autocorregirás automáticamente cualquier error ortográfico o de tipeo en las palabras del usuario. Por ejemplo:
+    - 'sproyectios', 'proyeto', 'proyectos', 'proyecto' -> entity: 'project'
+    - 'objetico', 'objetivo', 'objetivos', 'meta', 'metas', 'task', 'tarea' -> entity: 'objective'
+    - 'workspace', 'espacio', 'workspaces' -> entity: 'workspace'
+    - 'repo', 'repositorio', 'repositorios', 'github' -> entity: 'github_repo'
+    - 'vincular', 'conectar', 'linkear' -> action: 'connect'
+    - 'crea', 'crear', 'nuevo', 'añadir' -> action: 'create'
+    - 'tengo', 'mostrar', 'listar', 'ver', 'lista', 'tiene' -> action: 'list'
+
     Acciones disponibles:
     - create: crear workspace, project u objective
     - update: actualizar estado/progreso de objective
@@ -30,7 +40,6 @@ export class EngineService {
     - list: listar workspaces, projects, objectives o github_repos
     - detail: ver detalle de una entidad
     - delete: eliminar una entidad
-
 
     Entidades disponibles:
     - workspace: name, description, ownerId (userId)
@@ -42,7 +51,7 @@ export class EngineService {
 
     Responde SOLO con JSON, SIN markdown, SIN formato, SIN texto adicional:
     {
-      "action": "create|update|list|detail|delete",
+      "action": "create|update|connect|list|detail|delete",
       "entity": "workspace|project|objective|github_repo",
       "data": { campos necesarios para la acción },
       "search": "término de búsqueda si aplica"
@@ -64,6 +73,9 @@ export class EngineService {
     const aliases: Record<string, string> = { 
       task: 'objective', 
       tarea: 'objective',
+      objetico: 'objective',
+      proyeto: 'project',
+      sproyectios: 'project',
       repo: 'github_repo',
       repositorio: 'github_repo',
       repositorios: 'github_repo',
@@ -77,21 +89,32 @@ export class EngineService {
         return { type: 'list', entity: 'workspace', items: list, message: `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}` };
       }
       if (entity === 'project') {
-        let list: any[] = [];
+        let rawProjects: any[] = [];
         if (data?.workspaceId) {
-          list = await this.projects.findByWorkspaceId(data.workspaceId as string);
+          rawProjects = await this.projects.findByWorkspaceId(data.workspaceId as string);
         } else {
           const wss = await this.workspaces.findByUser(userId);
           for (const ws of wss) {
             const ps = await this.projects.findByWorkspaceId(ws.id);
-            list.push(...ps);
+            rawProjects.push(...ps);
           }
         }
-        if (list.length === 0) {
+        if (rawProjects.length === 0) {
           return { type: 'list', entity: 'project', items: [], message: 'No tienes ningún proyecto registrado todavía.' };
         }
-        return { type: 'list', entity: 'project', items: list, message: `Tienes ${list.length} proyecto${list.length !== 1 ? 's' : ''}` };
+
+        // Enrich projects with their objectives & repositories for graph visualization
+        const enrichedProjects = await Promise.all(
+          rawProjects.map(async (proj) => {
+            const objs = await this.objectives.findByProjectId(proj.id);
+            const repos = await this.repositories.findByProjectId(proj.id);
+            return { ...proj, objectives: objs, repositories: repos };
+          })
+        );
+
+        return { type: 'list', entity: 'project', items: enrichedProjects, message: `Tienes ${enrichedProjects.length} proyecto${enrichedProjects.length !== 1 ? 's' : ''}` };
       }
+
 
       if (entity === 'objective') {
         let list: any[] = [];
