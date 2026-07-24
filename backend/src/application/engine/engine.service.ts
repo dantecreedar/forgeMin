@@ -26,9 +26,11 @@ export class EngineService {
     Acciones disponibles:
     - create: crear workspace, project u objective
     - update: actualizar estado/progreso de objective
+    - connect: vincular repositorio de github a un proyecto
     - list: listar workspaces, projects, objectives o github_repos
     - detail: ver detalle de una entidad
     - delete: eliminar una entidad
+
 
     Entidades disponibles:
     - workspace: name, description, ownerId (userId)
@@ -75,13 +77,35 @@ export class EngineService {
         return { type: 'list', entity: 'workspace', items: list, message: `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}` };
       }
       if (entity === 'project') {
-        const list = await this.projects.findByWorkspaceId(data.workspaceId as string);
+        let list: any[] = [];
+        if (data?.workspaceId) {
+          list = await this.projects.findByWorkspaceId(data.workspaceId as string);
+        } else {
+          const wss = await this.workspaces.findByUser(userId);
+          for (const ws of wss) {
+            const ps = await this.projects.findByWorkspaceId(ws.id);
+            list.push(...ps);
+          }
+        }
+        if (list.length === 0) {
+          return { type: 'list', entity: 'project', items: [], message: 'No tienes ningún proyecto registrado todavía.' };
+        }
         return { type: 'list', entity: 'project', items: list, message: `Tienes ${list.length} proyecto${list.length !== 1 ? 's' : ''}` };
       }
+
       if (entity === 'objective') {
-        const list = await this.objectives.findByProjectId(data.projectId as string);
+        let list: any[] = [];
+        if (data?.projectId) {
+          list = await this.objectives.findByProjectId(data.projectId as string);
+        } else {
+          list = await this.objectives.findByUserId(userId);
+        }
+        if (list.length === 0) {
+          return { type: 'list', entity: 'objective', items: [], message: 'No tienes ningún objetivo registrado todavía.' };
+        }
         return { type: 'list', entity: 'objective', items: list, message: `Tienes ${list.length} objetivo${list.length !== 1 ? 's' : ''}` };
       }
+
       if (entity === 'github_repo') {
         try {
           const username = data.username as string | undefined;
@@ -180,6 +204,29 @@ export class EngineService {
       }
     }
 
+    if (action === 'connect' && entity === 'github_repo') {
+      let projectId = data.projectId as string;
+      if (!projectId) {
+        const wss = await this.workspaces.findByUser(userId);
+        for (const ws of wss) {
+          const ps = await this.projects.findByWorkspaceId(ws.id);
+          if (ps.length > 0) {
+            projectId = ps[0].id;
+            break;
+          }
+        }
+      }
+      if (!projectId) {
+        return { type: 'error', message: 'No tienes ningún proyecto para vincular. Crea un proyecto primero.' };
+      }
+      const owner = (data.owner || 'user') as string;
+      const name = (data.name || data.repoName) as string;
+      const defaultBranch = (data.defaultBranch || 'main') as string;
+      const connected = await this.repositories.connect(projectId, owner, name, defaultBranch, [defaultBranch]);
+      return { type: 'connected', entity: 'github_repo', item: connected, message: `Repositorio ${owner}/${name} vinculado exitosamente` };
+    }
+
     throw new Error(`No se pudo ejecutar: ${action} ${entity}`);
   }
 }
+

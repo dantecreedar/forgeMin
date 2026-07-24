@@ -2,10 +2,15 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
+import { Folder, Target, FolderGit2, CheckCircle, Clock, AlertCircle, ExternalLink, Sparkles, MessageSquare, X, Send } from 'lucide-react';
+import Link from 'next/link';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Message {
+  id: string;
   role: 'user' | 'assistant';
   content: string;
+  payload?: any;
 }
 
 export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
@@ -17,75 +22,239 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, open]);
 
   const send = async () => {
     if (!input.trim() || loading) return;
     const text = input.trim();
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: text }]);
+    const userMsgId = Date.now().toString();
+    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: text }]);
     setLoading(true);
 
     try {
       const res = await api.engine.command(text);
-      setMessages((prev) => [...prev, { role: 'assistant', content: res.message || 'OK' }]);
-      if (res.type === 'created' || res.type === 'updated' || res.type === 'deleted') {
+      const assistantMsgId = (Date.now() + 1).toString();
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: res.message || 'Operación completada',
+          payload: res,
+        },
+      ]);
+      if (res.type === 'created' || res.type === 'updated' || res.type === 'deleted' || res.type === 'connected') {
         window.dispatchEvent(new CustomEvent('forgemind:refresh'));
       }
-    } catch {
-      setMessages((prev) => [...prev, { role: 'assistant', content: 'Error' }]);
+    } catch (e: any) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+          role: 'assistant',
+          content: e?.message || 'Ocurrió un error al procesar tu mensaje.',
+        },
+      ]);
     } finally {
       setLoading(false);
     }
   };
 
+  const renderCard = (payload: any) => {
+    if (!payload || !payload.item) return null;
+    const { entity, item, type } = payload;
+
+    if (entity === 'project') {
+      return (
+        <div className="mt-2.5 bg-white border border-blue-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600 shrink-0">
+              <Folder size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-semibold uppercase text-blue-600 tracking-wider">Proyecto Creado</span>
+              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.name}</h4>
+            </div>
+          </div>
+          {item.description && (
+            <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">{item.description}</p>
+          )}
+          <Link
+            href={`/projects/${item.id}`}
+            onClick={() => setOpen(false)}
+            className="inline-flex items-center gap-1.5 text-xs text-primary font-medium hover:underline pt-1"
+          >
+            Ver Proyecto <ExternalLink size={12} />
+          </Link>
+        </div>
+      );
+    }
+
+    if (entity === 'objective') {
+      return (
+        <div className="mt-2.5 bg-white border border-emerald-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-emerald-50 rounded-lg flex items-center justify-center text-emerald-600 shrink-0">
+              <Target size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-semibold uppercase text-emerald-600 tracking-wider">Objetivo Registrado</span>
+              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.title}</h4>
+            </div>
+          </div>
+          {item.description && (
+            <p className="text-[11px] text-gray-600 line-clamp-2 leading-relaxed">{item.description}</p>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${item.progress || 0}%` }} />
+            </div>
+            <span className="text-[10px] font-semibold text-emerald-700 font-mono">{item.progress || 0}%</span>
+          </div>
+        </div>
+      );
+    }
+
+    if (entity === 'github_repo' || entity === 'repository') {
+      return (
+        <div className="mt-2.5 bg-white border border-slate-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-slate-100 rounded-lg flex items-center justify-center text-slate-700 shrink-0">
+              <FolderGit2 size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-semibold uppercase text-slate-600 tracking-wider">
+                {type === 'connected' ? 'Repositorio Vinculado' : 'Repositorio GitHub'}
+              </span>
+              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.fullName || item.name}</h4>
+            </div>
+          </div>
+          {item.defaultBranch && (
+            <p className="text-[10px] text-slate-500 font-mono">Rama: {item.defaultBranch}</p>
+          )}
+        </div>
+      );
+    }
+
+    if (entity === 'workspace') {
+      return (
+        <div className="mt-2.5 bg-white border border-purple-200 rounded-xl p-3.5 shadow-xs space-y-2 text-left">
+          <div className="flex items-center gap-2">
+            <div className="w-7 h-7 bg-purple-50 rounded-lg flex items-center justify-center text-purple-600 shrink-0">
+              <Folder size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-semibold uppercase text-purple-600 tracking-wider">Workspace Creado</span>
+              <h4 className="text-xs font-semibold text-gray-900 truncate">{item.name}</h4>
+            </div>
+          </div>
+          <Link
+            href="/workspaces"
+            onClick={() => setOpen(false)}
+            className="inline-flex items-center gap-1.5 text-xs text-purple-600 font-medium hover:underline pt-1"
+          >
+            Ir a Workspaces <ExternalLink size={12} />
+          </Link>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   if (!open) {
     return (
-      <button
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
         onClick={() => setOpen(true)}
-        className="fixed bottom-5 right-5 text-xs px-4 py-2 border rounded hover:bg-neutral-50 transition-colors z-50 bg-white shadow-sm"
+        className="fixed bottom-6 right-6 bg-slate-900 text-white p-3.5 rounded-full shadow-lg hover:bg-slate-800 transition-all z-50 flex items-center gap-2 border border-slate-700"
       >
-        Chat
-      </button>
+        <Sparkles size={18} className="text-amber-400" />
+        <span className="text-xs font-medium pr-1">Asistente IA</span>
+      </motion.button>
     );
   }
 
   return (
-    <div className="fixed bottom-5 right-5 w-80 h-96 border bg-white shadow-lg flex flex-col z-50 rounded">
-      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-primary text-white rounded-t">
-        <span className="text-xs font-medium">ForgeMind AI</span>
-        <button onClick={() => setOpen(false)} className="text-xs text-white/70 hover:text-white">✕</button>
+    <motion.div
+      initial={{ opacity: 0, scale: 0.95, y: 10 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: 10 }}
+      className="fixed bottom-6 right-6 w-84 sm:w-96 h-[460px] border border-border bg-white shadow-2xl flex flex-col z-50 rounded-2xl overflow-hidden"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 bg-slate-900 text-white border-b border-slate-800">
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 rounded-full bg-amber-400/20 flex items-center justify-center">
+            <Sparkles size={14} className="text-amber-400" />
+          </div>
+          <span className="text-xs font-semibold tracking-wide">ForgeMind Assistant</span>
+        </div>
+        <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white p-1 rounded-lg">
+          <X size={16} />
+        </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+      {/* Messages Area */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3.5 bg-gray-50/50">
         {messages.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center mt-8">
-            Pregunta o da instrucciones
-          </p>
+          <div className="text-center py-8 space-y-2">
+            <div className="w-10 h-10 bg-primary/10 text-primary rounded-xl flex items-center justify-center mx-auto">
+              <MessageSquare size={20} />
+            </div>
+            <p className="text-xs font-semibold text-gray-800">¿En qué puedo ayudarte?</p>
+            <p className="text-[11px] text-muted-foreground max-w-[220px] mx-auto leading-relaxed">
+              Prueba diciendo: <br />
+              <span className="text-primary italic">"crea un proyecto llamado Backend API"</span>
+              <br />o <span className="text-primary italic">"crea un objetivo llamado Autenticación"</span>
+            </p>
+          </div>
         )}
-        {messages.map((msg, i) => (
-          <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] px-3 py-1.5 text-xs leading-relaxed ${msg.role === 'user' ? 'bg-primary/10 rounded-xl' : 'text-foreground'}`}>
-              {msg.content}
+
+        {messages.map((msg) => (
+          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[85%] px-3.5 py-2.5 rounded-2xl text-xs leading-relaxed ${
+              msg.role === 'user'
+                ? 'bg-primary text-white rounded-br-none shadow-xs'
+                : 'bg-white border border-gray-200 text-slate-800 rounded-bl-none shadow-xs'
+            }`}>
+              <p>{msg.content}</p>
+              {msg.payload && renderCard(msg.payload)}
             </div>
           </div>
         ))}
-        {loading && <div className="text-xs text-muted-foreground animate-pulse">...</div>}
+
+        {loading && (
+          <div className="flex justify-start">
+            <div className="bg-white border border-gray-200 px-3.5 py-2 rounded-2xl text-xs text-muted-foreground flex items-center gap-1.5 shadow-xs">
+              <Sparkles size={12} className="animate-spin text-amber-500" />
+              Procesando...
+            </div>
+          </div>
+        )}
         <div ref={endRef} />
       </div>
 
-      <div className="border-t px-4 py-2.5 flex gap-2">
+      {/* Input Footer */}
+      <div className="p-3 bg-white border-t border-gray-200 flex items-center gap-2">
         <input
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && send()}
-          placeholder="Escribe un mensaje..."
-          className="flex-1 text-xs border-none outline-none bg-transparent placeholder:text-muted-foreground"
+          placeholder="Escribe una instrucción..."
+          className="flex-1 text-xs bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 outline-none focus:ring-2 focus:ring-primary/20 transition-all"
         />
-        <button onClick={send} disabled={loading} className="text-xs text-primary disabled:text-muted-foreground font-medium">
-          Enviar
-        </button>
+        <motion.button
+          whileTap={{ scale: 0.95 }}
+          onClick={send}
+          disabled={loading || !input.trim()}
+          className="bg-primary text-white p-2.5 rounded-xl disabled:opacity-40 transition-opacity shrink-0"
+        >
+          <Send size={14} />
+        </motion.button>
       </div>
-    </div>
+    </motion.div>
   );
 }
