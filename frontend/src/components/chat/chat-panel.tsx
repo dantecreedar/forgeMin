@@ -29,6 +29,9 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
     try {
       const res = await api.engine.command(text);
       setMessages((prev) => [...prev, { role: 'assistant', content: res.message || 'OK' }]);
+      if (res.type === 'created' || res.type === 'updated' || res.type === 'deleted') {
+        window.dispatchEvent(new CustomEvent('forgemind:refresh'));
+      }
     } catch {
       setMessages((prev) => [...prev, { role: 'assistant', content: 'Error' }]);
     } finally {

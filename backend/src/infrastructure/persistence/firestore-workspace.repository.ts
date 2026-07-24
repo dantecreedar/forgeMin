@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { getFirestore } from 'firebase-admin/firestore';
 import { IWorkspaceRepository } from '../../domain/workspace/workspace.repository.interface';
 import { Workspace, IWorkspace } from '../../domain/workspace/workspace.entity';
 import { FirestoreRepository } from './firestore-repository';
@@ -12,6 +13,10 @@ export class FirestoreWorkspaceRepository extends FirestoreRepository<Workspace>
   }
 
   async findByMemberId(userId: string): Promise<Workspace[]> {
-    return this.findByField('memberIds', userId);
+    const snapshot = await getFirestore()
+      .collection(this.collectionName)
+      .where('memberIds', 'array-contains', userId)
+      .get();
+    return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() } as Workspace));
   }
 }

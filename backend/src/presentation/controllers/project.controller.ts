@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Delete } from '@nestjs/common';
 import { ProjectApplicationService } from '../../application/project/project.service';
 
 @Controller('projects')
@@ -21,6 +21,12 @@ export class ProjectController {
   async findByWorkspace(@Param('workspaceId') workspaceId: string) {
     const projects = await this.projectService.findByWorkspaceId(workspaceId);
     return { projects };
+  }
+
+  @Patch(':id')
+  async update(@Param('id') id: string, @Body() data: { name?: string; description?: string }) {
+    const project = await this.projectService.update(id, data);
+    return { project };
   }
 
   @Delete(':id')

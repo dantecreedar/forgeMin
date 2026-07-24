@@ -43,6 +43,13 @@ export class ProjectApplicationService {
     return updated;
   }
 
+  async update(id: string, data: { name?: string; description?: string }): Promise<Project> {
+    const project = await this.findById(id);
+    const updated = project.update(data);
+    await this.projectRepository.update(updated);
+    return updated;
+  }
+
   async archive(id: string): Promise<void> {
     const project = await this.findById(id);
     await this.projectRepository.update(project.archive());

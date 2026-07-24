@@ -41,6 +41,10 @@ export const api = {
     get: (id: string) => fetch(`${API_BASE}/projects/${id}`, { headers: getHeaders() }).then((r) => r.json()),
     create: (workspaceId: string, name: string, description?: string) =>
       fetch(`${API_BASE}/projects`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ workspaceId, name, description }) }).then((r) => r.json()),
+    update: (id: string, data: { name?: string; description?: string }) =>
+      fetch(`${API_BASE}/projects/${id}`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => r.json()),
+    delete: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => r.json()),
   },
   objectives: {
     listByUser: (userId: string) => fetch(`${API_BASE}/objectives/user/${userId}`, { headers: getHeaders() }).then((r) => r.json()),
@@ -48,5 +52,7 @@ export const api = {
     get: (id: string) => fetch(`${API_BASE}/objectives/${id}`, { headers: getHeaders() }).then((r) => r.json()),
     create: (projectId: string, title: string, description?: string, tags?: string[]) =>
       fetch(`${API_BASE}/objectives`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ projectId, title, description, tags }) }).then((r) => r.json()),
+    delete: (id: string) =>
+      fetch(`${API_BASE}/objectives/${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => r.json()),
   },
 };

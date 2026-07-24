@@ -1,9 +1,13 @@
-import { Controller, Post, Body, Headers } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Inject, UnauthorizedException } from '@nestjs/common';
 import { EngineService } from '../../application/engine/engine.service';
+import { IAuthService, AUTH_SERVICE } from '../../domain/authentication/auth-service.interface';
 
 @Controller('engine')
 export class EngineController {
-  constructor(private readonly engine: EngineService) {}
+  constructor(
+    private readonly engine: EngineService,
+    @Inject(AUTH_SERVICE) private readonly authService: IAuthService,
+  ) {}
 
   @Post('command')
   async command(
@@ -11,27 +15,22 @@ export class EngineController {
     @Headers('authorization') auth: string,
   ) {
     const token = auth?.replace('Bearer ', '');
-    const userId = token ? this.extractUserId(token) : 'default';
+    if (!token) {
+      return { type: 'error', message: 'No autorizado. Inicia sesi\u00f3n primero.' };
+    }
     try {
-      const result = await this.engine.process(userId, message);
+      const user = await this.authService.validateToken(token);
+      const result = await this.engine.process(user.id, message);
       return result;
     } catch (e: unknown) {
       const error = e as Error;
+      if (error instanceof UnauthorizedException) {
+        return { type: 'error', message: 'Sesi\u00f3n expirada. Inicia sesi\u00f3n nuevamente.' };
+      }
       return {
         type: 'error',
-        message: error.message || 'No pude procesar la solicitud. Intenta ser m�s espec�fico.',
+        message: error.message || 'No pude procesar la solicitud. Intenta ser m\u00e1s espec\u00edfico.',
       };
     }
-  }
-
-  private extractUserId(_token: string): string {
-    try {
-      const parts = _token.split('.');
-      if (parts.length === 3) {
-        const payload = JSON.parse(Buffer.from(parts[1], 'base64url').toString());
-        return payload.user_id || payload.sub || 'default';
-      }
-    } catch { /* ignore */ }
-    return 'default';
   }
 }

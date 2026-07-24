@@ -41,6 +41,16 @@ export class Project implements IProject {
     );
   }
 
+  update(data: { name?: string; description?: string }): Project {
+    return new Project(
+      this.id, this.workspaceId,
+      data.name ?? this.name,
+      data.description !== undefined ? data.description : this.description,
+      this.repositoryIds, this.objectiveIds,
+      this.createdAt, new Date(), this.isArchived,
+    );
+  }
+
   archive(): Project {
     return new Project(
       this.id, this.workspaceId, this.name, this.description,

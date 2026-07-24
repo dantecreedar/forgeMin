@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common';
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common';
 import { IObjectiveRepository, OBJECTIVE_REPOSITORY } from '../../domain/objective/objective.repository.interface';
 import { Objective, ObjectiveStatus, IObjective } from '../../domain/objective/objective.entity';
 import { ProjectApplicationService } from '../project/project.service';
@@ -15,6 +15,7 @@ export class ObjectiveApplicationService {
   ) {}
 
   async create(projectId: string, title: string, description?: string, tags?: string[]): Promise<Objective> {
+    if (!projectId || !projectId.trim()) throw new BadRequestException('Se requiere un projectId válido.');
     const project = await this.projectService.findById(projectId);
     const objective = new Objective(
       uuidv4(), projectId, title, description,

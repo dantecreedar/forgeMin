@@ -2,23 +2,35 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Folder, Plus, X, Users, Search } from 'lucide-react';
+import { Folder, Plus, X, Users, Search, ChevronDown, ChevronRight, ExternalLink } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
 export default function WorkspacesPage() {
   const { user } = useAuth();
   const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [projectsMap, setProjectsMap] = useState<Record<string, any[]>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [showCreate, setShowCreate] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
+  const loadProjects = async (wsId: string) => {
+    try {
+      const res = await api.projects.list(wsId);
+      setProjectsMap((prev) => ({ ...prev, [wsId]: res.projects || [] }));
+    } catch {}
+  };
+
   useEffect(() => {
     if (!user) return;
     api.workspaces.list(user.id).then((res) => {
-      setWorkspaces(res.workspaces || []);
+      const wss = res.workspaces || [];
+      setWorkspaces(wss);
+      wss.forEach((ws: any) => loadProjects(ws.id));
     }).catch(() => {}).finally(() => setLoading(false));
   }, [user]);
 
@@ -26,11 +38,17 @@ export default function WorkspacesPage() {
     if (!name.trim() || !user) return;
     try {
       const res = await api.workspaces.create(name.trim(), user.id, description.trim() || undefined);
-      setWorkspaces((prev) => [res.workspace, ...prev]);
+      const ws = res.workspace;
+      setWorkspaces((prev) => [ws, ...prev]);
+      loadProjects(ws.id);
       setName('');
       setDescription('');
       setShowCreate(false);
     } catch {}
+  };
+
+  const toggleExpand = (wsId: string) => {
+    setExpanded((prev) => ({ ...prev, [wsId]: !prev[wsId] }));
   };
 
   const filtered = search
@@ -142,36 +160,93 @@ export default function WorkspacesPage() {
             </motion.button>
           </motion.div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filtered.map((ws, i) => (
-              <motion.div
-                key={ws.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: i * 0.05 }}
-                className="bg-white border border-border rounded-2xl p-5 shadow-sm cursor-pointer group"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center">
-                    <Folder className="text-primary" size={18} />
-                  </div>
-                </div>
-                <h3 className="text-sm font-medium mb-1">{ws.name}</h3>
-                {ws.description && (
-                  <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{ws.description}</p>
-                )}
-                <div className="flex gap-4 pt-3 border-t border-border">
-                  <div className="flex items-center gap-1.5">
-                    <Folder size={12} className="text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">0 projects</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <Users size={12} className="text-muted-foreground" />
-                    <span className="text-xs text-muted-foreground">{ws.memberIds?.length || 1} members</span>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
+          <div className="space-y-4">
+            {filtered.map((ws, i) => {
+              const wsProjects = projectsMap[ws.id] || [];
+              const isExpanded = expanded[ws.id];
+              return (
+                <motion.div
+                  key={ws.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: i * 0.05 }}
+                  className="bg-white border border-border rounded-2xl shadow-sm overflow-hidden"
+                >
+                  <button
+                    onClick={() => toggleExpand(ws.id)}
+                    className="w-full p-5 flex items-start justify-between text-left hover:bg-gray-50/50 transition-colors"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center shrink-0">
+                          <Folder className="text-primary" size={18} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="text-sm font-medium">{ws.name}</h3>
+                          {ws.description && (
+                            <p className="text-xs text-muted-foreground truncate">{ws.description}</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-4 pt-2 border-t border-border">
+                        <div className="flex items-center gap-1.5">
+                          <Folder size={12} className="text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{wsProjects.length} project{wsProjects.length !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Users size={12} className="text-muted-foreground" />
+                          <span className="text-xs text-muted-foreground">{ws.memberIds?.length || 1} member{ws.memberIds?.length !== 1 ? 's' : ''}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="ml-4 mt-1 text-muted-foreground">
+                      {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                    </div>
+                  </button>
+
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        className="border-t border-border"
+                      >
+                        {wsProjects.length === 0 ? (
+                          <div className="px-5 py-8 flex flex-col items-center">
+                            <p className="text-xs text-muted-foreground mb-3">No projects yet</p>
+                            <p className="text-xs text-muted-foreground">Create one via chat or use the dashboard.</p>
+                          </div>
+                        ) : (
+                          <div className="px-5 py-3 space-y-2">
+                            {wsProjects.map((proj: any) => (
+                              <Link
+                                key={proj.id}
+                                href={`/projects/${proj.id}`}
+                                className="block"
+                              >
+                                <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl hover:bg-gray-50 transition-colors group/proj">
+                                  <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                                    <Folder size={14} className="text-blue-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium text-foreground">{proj.name}</p>
+                                    {proj.description && (
+                                      <p className="text-xs text-muted-foreground truncate">{proj.description}</p>
+                                    )}
+                                  </div>
+                                  <ExternalLink size={14} className="text-muted-foreground opacity-0 group-hover/proj:opacity-100 transition-opacity" />
+                                </div>
+                              </Link>
+                            ))}
+                          </div>
+                        )}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </div>
