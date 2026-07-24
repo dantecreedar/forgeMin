@@ -3,7 +3,8 @@ import { IBranch, ICommit, IPullRequest, IIssue, IRelease, IGitHubRepo } from '.
 export const GITHUB_CLIENT = 'GITHUB_CLIENT';
 
 export interface IGitHubClient {
-  getUserRepositories(username?: string, visibility?: 'all' | 'public' | 'private'): Promise<IGitHubRepo[]>;
+  getUserRepositories(username?: string, userToken?: string, visibility?: 'all' | 'public' | 'private'): Promise<IGitHubRepo[]>;
+
 
   getBranches(owner: string, repo: string): Promise<IBranch[]>;
   getCommits(owner: string, repo: string, branch: string, since?: Date): Promise<ICommit[]>;

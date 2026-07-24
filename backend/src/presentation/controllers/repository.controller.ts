@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Headers, Delete } from '@nestjs/common';
 import { RepositoryApplicationService } from '../../application/repository/repository.service';
 
 @Controller('repositories')
@@ -6,10 +6,14 @@ export class RepositoryController {
   constructor(private readonly repositoryService: RepositoryApplicationService) {}
 
   @Get('github')
-  async getGitHubRepositories(@Query('username') username?: string) {
-    const repos = await this.repositoryService.fetchGitHubRepositories(username);
+  async getGitHubRepositories(
+    @Query('username') username?: string,
+    @Headers('x-github-token') userGithubToken?: string,
+  ) {
+    const repos = await this.repositoryService.fetchGitHubRepositories(username, userGithubToken);
     return { repositories: repos };
   }
+
 
 
   @Post('connect')

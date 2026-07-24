@@ -16,9 +16,10 @@ export class RepositoryApplicationService {
     private readonly projectService: ProjectApplicationService,
   ) {}
 
-  async fetchGitHubRepositories(username?: string, visibility?: 'all' | 'public' | 'private'): Promise<IGitHubRepo[]> {
-    return this.githubClient.getUserRepositories(username, visibility);
+  async fetchGitHubRepositories(username?: string, userToken?: string, visibility?: 'all' | 'public' | 'private'): Promise<IGitHubRepo[]> {
+    return this.githubClient.getUserRepositories(username, userToken, visibility);
   }
+
 
 
   async connect(projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]): Promise<GitHubRepository> {

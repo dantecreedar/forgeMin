@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { GitBranch, ExternalLink, Search, RefreshCw, Lock, Globe, AlertCircle, FolderGit2 } from 'lucide-react';
+import { useAuth } from '@/lib/auth-context';
+import { GitBranch, ExternalLink, Search, RefreshCw, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X } from 'lucide-react';
 
 interface GitHubRepo {
   id: number;
@@ -18,12 +19,22 @@ interface GitHubRepo {
 }
 
 export default function RepositoriesPage() {
+  const { user } = useAuth();
   const [repositories, setRepositories] = useState<GitHubRepo[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [usernameInput, setUsernameInput] = useState('');
   const [visibleCount, setVisibleCount] = useState(6);
+
+  // Connect modal state
+  const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
+  const [workspaces, setWorkspaces] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [connecting, setConnecting] = useState(false);
+  const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
 
   const loadRepositories = async (username?: string) => {
     setLoading(true);
@@ -46,6 +57,58 @@ export default function RepositoriesPage() {
   useEffect(() => {
     loadRepositories();
   }, []);
+
+  const openConnectModal = async (repo: GitHubRepo) => {
+    setSelectedRepo(repo);
+    setConnectSuccess(null);
+    if (!user) return;
+    try {
+      const wsRes = await api.workspaces.list(user.id);
+      const wss = wsRes.workspaces || [];
+      setWorkspaces(wss);
+      if (wss.length > 0) {
+        setSelectedWorkspaceId(wss[0].id);
+        const projRes = await api.projects.list(wss[0].id);
+        const projs = projRes.projects || [];
+        setProjects(projs);
+        if (projs.length > 0) setSelectedProjectId(projs[0].id);
+      }
+    } catch {}
+  };
+
+  const handleWorkspaceChange = async (wsId: string) => {
+    setSelectedWorkspaceId(wsId);
+    setSelectedProjectId('');
+    try {
+      const projRes = await api.projects.list(wsId);
+      const projs = projRes.projects || [];
+      setProjects(projs);
+      if (projs.length > 0) setSelectedProjectId(projs[0].id);
+    } catch {}
+  };
+
+  const handleConnectRepo = async () => {
+    if (!selectedRepo || !selectedProjectId) return;
+    setConnecting(true);
+    try {
+      await api.repositories.connect(
+        selectedProjectId,
+        selectedRepo.owner,
+        selectedRepo.name,
+        selectedRepo.defaultBranch,
+        [selectedRepo.defaultBranch]
+      );
+      setConnectSuccess(`Repositorio "${selectedRepo.name}" vinculado exitosamente al proyecto.`);
+      setTimeout(() => {
+        setSelectedRepo(null);
+        setConnectSuccess(null);
+      }, 1800);
+    } catch (e: any) {
+      alert(e.message || 'Error al vincular el repositorio');
+    } finally {
+      setConnecting(false);
+    }
+  };
 
   const handleSearchUser = (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,7 +136,7 @@ export default function RepositoriesPage() {
             <h1 className="text-2xl font-bold text-foreground">Repositorios de GitHub</h1>
           </div>
           <p className="text-sm text-muted-foreground mt-1">
-            Explora tus repositorios conectados y sincronízalos con ForgeMind.
+            Explora tus repositorios conectados y vincúlalos a un Proyecto para que la IA analice su progreso.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -185,16 +248,19 @@ export default function RepositoriesPage() {
                   </div>
 
                   <div className="mt-4 pt-3 border-t border-gray-100 flex items-center justify-between text-xs text-muted-foreground">
-                    <div className="flex items-center gap-1.5 font-mono">
-                      <GitBranch size={13} className="text-gray-400" />
-                      <span>{repo.defaultBranch}</span>
-                    </div>
+                    <button
+                      onClick={() => openConnectModal(repo)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary font-medium rounded-lg transition-colors"
+                    >
+                      <LinkIcon size={12} />
+                      Vincular a Proyecto
+                    </button>
 
                     <a
                       href={repo.htmlUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                      className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground font-medium"
                     >
                       Ver en GitHub
                       <ExternalLink size={12} />
@@ -233,7 +299,95 @@ export default function RepositoriesPage() {
           </p>
         </motion.div>
       )}
+
+      {/* Connect Modal */}
+      <AnimatePresence>
+        {selectedRepo && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-border rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <LinkIcon className="text-primary" size={20} />
+                  <h3 className="font-semibold text-foreground text-base">Vincular Repositorio</h3>
+                </div>
+                <button onClick={() => setSelectedRepo(null)} className="text-muted-foreground hover:text-foreground">
+                  <X size={18} />
+                </button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">
+                Vincula <strong className="text-foreground">{selectedRepo.fullName}</strong> a un Proyecto para que la IA analice sus commits y evalúe tus objetivos.
+              </p>
+
+              {connectSuccess ? (
+                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 text-xs flex items-center gap-2">
+                  <Check size={16} className="text-emerald-600" />
+                  <span>{connectSuccess}</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Workspace</label>
+                    <select
+                      value={selectedWorkspaceId}
+                      onChange={(e) => handleWorkspaceChange(e.target.value)}
+                      className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                    >
+                      {workspaces.map((ws) => (
+                        <option key={ws.id} value={ws.id}>
+                          {ws.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground mb-1">Proyecto</label>
+                    {projects.length > 0 ? (
+                      <select
+                        value={selectedProjectId}
+                        onChange={(e) => setSelectedProjectId(e.target.value)}
+                        className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                      >
+                        {projects.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                        Este workspace no tiene proyectos aún. Crea un proyecto primero.
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="pt-2 flex gap-3">
+                    <button
+                      onClick={handleConnectRepo}
+                      disabled={connecting || !selectedProjectId}
+                      className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      {connecting ? 'Vinculando...' : 'Vincular Repositorio'}
+                    </button>
+                    <button
+                      onClick={() => setSelectedRepo(null)}
+                      className="px-4 py-2.5 text-muted-foreground hover:bg-gray-100 rounded-xl text-sm font-medium"
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
-

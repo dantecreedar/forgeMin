@@ -14,6 +14,7 @@ import { WorkspaceApplicationService } from './application/workspace/workspace.s
 import { ProjectApplicationService } from './application/project/project.service';
 import { RepositoryApplicationService } from './application/repository/repository.service';
 import { ObjectiveApplicationService } from './application/objective/objective.service';
+import { AIEngineService } from './application/analysis/ai-engine.service';
 import { SyncEngineService } from './application/analysis/sync-engine.service';
 import { TimelineEngineService } from './application/analysis/timeline-engine.service';
 import { ReportEngineService } from './application/analysis/report-engine.service';
@@ -31,6 +32,7 @@ import { RepositoryController } from './presentation/controllers/repository.cont
 import { ChatController } from './presentation/controllers/chat.controller';
 import { EngineController } from './presentation/controllers/engine.controller';
 import { EngineService } from './application/engine/engine.service';
+
 
 import { AUTH_REPOSITORY } from './domain/authentication/auth.repository.interface';
 import { WORKSPACE_REPOSITORY } from './domain/workspace/workspace.repository.interface';
@@ -92,7 +94,9 @@ const firestoreProviders = [
     ProjectApplicationService,
     RepositoryApplicationService,
     ObjectiveApplicationService,
+    AIEngineService,
     SyncEngineService,
+
     TimelineEngineService,
     ReportEngineService,
     ReleaseNotesEngineService,

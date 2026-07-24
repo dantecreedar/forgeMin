@@ -16,21 +16,23 @@ export class GitHubClientService implements IGitHubClient {
     });
   }
 
-  async getUserRepositories(username?: string, visibility: 'all' | 'public' | 'private' = 'all'): Promise<IGitHubRepo[]> {
+  async getUserRepositories(username?: string, userToken?: string, visibility: 'all' | 'public' | 'private' = 'all'): Promise<IGitHubRepo[]> {
+    const activeToken = userToken || process.env.GITHUB_TOKEN || process.env.GITHUB_API;
+    const octokit = new Octokit({ auth: activeToken });
     let data;
+
     if (username) {
-      const res = await this.octokit.repos.listForUser({
+      const res = await octokit.repos.listForUser({
         username,
         sort: 'updated',
         per_page: 100,
       });
       data = res.data;
     } else {
-      if (!this.token) {
-        throw new Error('Falta configurar la variable GITHUB_TOKEN en backend/.env para autenticar con tu cuenta de GitHub.');
+      if (!activeToken) {
+        throw new Error('No se encontró un token de GitHub. Inicia sesión con GitHub en la aplicación o configura GITHUB_TOKEN en backend/.env.');
       }
-      const res = await this.octokit.repos.listForAuthenticatedUser({
-
+      const res = await octokit.repos.listForAuthenticatedUser({
         visibility,
         sort: 'updated',
         per_page: 100,
@@ -50,6 +52,7 @@ export class GitHubClientService implements IGitHubClient {
       updatedAt: repo.updated_at ? new Date(repo.updated_at) : undefined,
     }));
   }
+
 
   async getBranches(owner: string, repo: string): Promise<IBranch[]> {
 

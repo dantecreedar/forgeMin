@@ -1,14 +1,32 @@
 import { Controller, Get, Post, Patch, Body, Param, Delete } from '@nestjs/common';
 import { ProjectApplicationService } from '../../application/project/project.service';
+import { SyncEngineService } from '../../application/analysis/sync-engine.service';
+import { AIEngineService } from '../../application/analysis/ai-engine.service';
+import { RepositoryApplicationService } from '../../application/repository/repository.service';
 
 @Controller('projects')
 export class ProjectController {
-  constructor(private readonly projectService: ProjectApplicationService) {}
+  constructor(
+    private readonly projectService: ProjectApplicationService,
+    private readonly syncEngineService: SyncEngineService,
+    private readonly aiEngineService: AIEngineService,
+    private readonly repositoryService: RepositoryApplicationService,
+  ) {}
 
   @Post()
   async create(@Body('workspaceId') workspaceId: string, @Body('name') name: string, @Body('description') description?: string) {
     const project = await this.projectService.create(workspaceId, name, description);
     return { project };
+  }
+
+  @Post(':id/analyze')
+  async analyzeProject(@Param('id') id: string) {
+    const repos = await this.repositoryService.findByProjectId(id);
+    for (const repo of repos) {
+      await this.syncEngineService.syncRepository(repo);
+    }
+    const analyses = await this.aiEngineService.analyzeAllObjectives(id);
+    return { success: true, analyses };
   }
 
   @Get(':id')
@@ -35,3 +53,4 @@ export class ProjectController {
     return { deleted: true };
   }
 }
+

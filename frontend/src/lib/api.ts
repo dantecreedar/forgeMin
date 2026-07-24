@@ -2,9 +2,20 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v
 
 function getHeaders(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
+  const githubToken = typeof window !== 'undefined' ? localStorage.getItem('github_token') : null;
   const headers: HeadersInit = { 'Content-Type': 'application/json' };
   if (token) headers['Authorization'] = `Bearer ${token}`;
+  if (githubToken) headers['x-github-token'] = githubToken;
   return headers;
+}
+
+
+async function handleResponse(r: Response) {
+  const data = await r.json();
+  if (!r.ok) {
+    throw new Error(data.message || `Error del servidor (${r.status})`);
+  }
+  return data;
 }
 
 export const api = {
@@ -14,7 +25,7 @@ export const api = {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ message }),
-      }).then((r) => r.json()),
+      }).then(handleResponse),
   },
   auth: {
     login: (token: string) => {
@@ -23,47 +34,51 @@ export const api = {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token }),
-      }).then(async (r) => {
-        const data = await r.json();
-        return data;
-      });
+      }).then(handleResponse);
     },
-    me: () => fetch(`${API_BASE}/auth/me`, { headers: getHeaders() }).then((r) => r.json()),
+    me: () => fetch(`${API_BASE}/auth/me`, { headers: getHeaders() }).then(handleResponse),
   },
   workspaces: {
-    list: (userId: string) => fetch(`${API_BASE}/workspaces/user/${userId}`, { headers: getHeaders() }).then((r) => r.json()),
-    get: (id: string) => fetch(`${API_BASE}/workspaces/${id}`, { headers: getHeaders() }).then((r) => r.json()),
+    list: (userId: string) => fetch(`${API_BASE}/workspaces/user/${userId}`, { headers: getHeaders() }).then(handleResponse),
+    get: (id: string) => fetch(`${API_BASE}/workspaces/${id}`, { headers: getHeaders() }).then(handleResponse),
     create: (name: string, ownerId: string, description?: string) =>
-      fetch(`${API_BASE}/workspaces`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name, ownerId, description }) }).then((r) => r.json()),
+      fetch(`${API_BASE}/workspaces`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name, ownerId, description }) }).then(handleResponse),
   },
   projects: {
-    list: (workspaceId: string) => fetch(`${API_BASE}/projects/workspace/${workspaceId}`, { headers: getHeaders() }).then((r) => r.json()),
-    get: (id: string) => fetch(`${API_BASE}/projects/${id}`, { headers: getHeaders() }).then((r) => r.json()),
+    list: (workspaceId: string) => fetch(`${API_BASE}/projects/workspace/${workspaceId}`, { headers: getHeaders() }).then(handleResponse),
+    get: (id: string) => fetch(`${API_BASE}/projects/${id}`, { headers: getHeaders() }).then(handleResponse),
     create: (workspaceId: string, name: string, description?: string) =>
-      fetch(`${API_BASE}/projects`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ workspaceId, name, description }) }).then((r) => r.json()),
+      fetch(`${API_BASE}/projects`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ workspaceId, name, description }) }).then(handleResponse),
     update: (id: string, data: { name?: string; description?: string }) =>
-      fetch(`${API_BASE}/projects/${id}`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify(data) }).then((r) => r.json()),
+      fetch(`${API_BASE}/projects/${id}`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify(data) }).then(handleResponse),
     delete: (id: string) =>
-      fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => r.json()),
+      fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
+    analyze: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/analyze`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
   },
+
   objectives: {
-    listByUser: (userId: string) => fetch(`${API_BASE}/objectives/user/${userId}`, { headers: getHeaders() }).then((r) => r.json()),
-    list: (projectId: string) => fetch(`${API_BASE}/objectives/project/${projectId}`, { headers: getHeaders() }).then((r) => r.json()),
-    get: (id: string) => fetch(`${API_BASE}/objectives/${id}`, { headers: getHeaders() }).then((r) => r.json()),
+    listByUser: (userId: string) => fetch(`${API_BASE}/objectives/user/${userId}`, { headers: getHeaders() }).then(handleResponse),
+    list: (projectId: string) => fetch(`${API_BASE}/objectives/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
+    get: (id: string) => fetch(`${API_BASE}/objectives/${id}`, { headers: getHeaders() }).then(handleResponse),
     create: (projectId: string, title: string, description?: string, tags?: string[]) =>
-      fetch(`${API_BASE}/objectives`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ projectId, title, description, tags }) }).then((r) => r.json()),
+      fetch(`${API_BASE}/objectives`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ projectId, title, description, tags }) }).then(handleResponse),
     delete: (id: string) =>
-      fetch(`${API_BASE}/objectives/${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => r.json()),
+      fetch(`${API_BASE}/objectives/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
   repositories: {
     listGitHub: (username?: string) =>
-      fetch(`${API_BASE}/repositories/github${username ? `?username=${encodeURIComponent(username)}` : ''}`, { headers: getHeaders() }).then((r) => r.json()),
+      fetch(`${API_BASE}/repositories/github${username ? `?username=${encodeURIComponent(username)}` : ''}`, { headers: getHeaders() }).then(handleResponse),
+    listByProject: (projectId: string) =>
+      fetch(`${API_BASE}/repositories/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
     connect: (projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]) =>
       fetch(`${API_BASE}/repositories/connect`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify({ projectId, owner, name, defaultBranch, monitoredBranches }),
-      }).then((r) => r.json()),
+      }).then(handleResponse),
   },
 };
+
+
 

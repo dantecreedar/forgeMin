@@ -1,6 +1,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { GeminiService } from '../../infrastructure/gemini/gemini.service';
 import { IObjectiveRepository, OBJECTIVE_REPOSITORY } from '../../domain/objective/objective.repository.interface';
+import { ITimelineRepository, TIMELINE_REPOSITORY } from '../../domain/timeline/timeline.repository.interface';
 import { Objective, ObjectiveStatus } from '../../domain/objective/objective.entity';
 import { ObjectiveAnalysis } from '../../domain/objective/objective-analysis.entity';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,15 +12,26 @@ export class AIEngineService {
     private readonly geminiService: GeminiService,
     @Inject(OBJECTIVE_REPOSITORY)
     private readonly objectiveRepository: IObjectiveRepository,
+    @Inject(TIMELINE_REPOSITORY)
+    private readonly timelineRepository: ITimelineRepository,
   ) {}
 
   async analyzeObjective(objectiveId: string): Promise<ObjectiveAnalysis> {
     const objective = await this.objectiveRepository.findById(objectiveId);
     if (!objective) throw new Error('Objective not found');
 
+    const events = await this.timelineRepository.findByProjectId(objective.projectId);
+    const commits = events.map((e) => ({
+      title: e.title,
+      description: e.description,
+      metadata: e.metadata,
+      date: e.occurredAt,
+    }));
+
+
     const analysis = await this.geminiService.analyzeObjective(
       objective.title,
-      [],
+      commits,
       [],
       [],
     );
@@ -37,6 +49,7 @@ export class AIEngineService {
       analysis.nextSteps, [], [], [], new Date(), 'gemini-2.0-flash',
     );
   }
+
 
   async analyzeAllObjectives(projectId: string): Promise<ObjectiveAnalysis[]> {
     const objectives = await this.objectiveRepository.findByProjectId(projectId);
