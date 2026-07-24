@@ -2,6 +2,8 @@ import { Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { IRepositoryRepository, REPOSITORY_REPOSITORY } from '../../domain/repository/repository.repository.interface';
 import { GitHubRepository } from '../../domain/repository/repository.entity';
 import { ProjectApplicationService } from '../project/project.service';
+import { IGitHubClient, GITHUB_CLIENT } from '../../infrastructure/github/github-client.interface';
+import { IGitHubRepo } from '../../domain/repository/github-data.entity';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -9,8 +11,15 @@ export class RepositoryApplicationService {
   constructor(
     @Inject(REPOSITORY_REPOSITORY)
     private readonly repositoryRepository: IRepositoryRepository,
+    @Inject(GITHUB_CLIENT)
+    private readonly githubClient: IGitHubClient,
     private readonly projectService: ProjectApplicationService,
   ) {}
+
+  async fetchGitHubRepositories(username?: string, visibility?: 'all' | 'public' | 'private'): Promise<IGitHubRepo[]> {
+    return this.githubClient.getUserRepositories(username, visibility);
+  }
+
 
   async connect(projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]): Promise<GitHubRepository> {
     const project = await this.projectService.findById(projectId);
@@ -46,3 +55,4 @@ export class RepositoryApplicationService {
     await this.repositoryRepository.delete(id);
   }
 }
+

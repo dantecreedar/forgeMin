@@ -3,6 +3,7 @@ import { GeminiService } from '../../infrastructure/gemini/gemini.service';
 import { WorkspaceApplicationService } from '../workspace/workspace.service';
 import { ProjectApplicationService } from '../project/project.service';
 import { ObjectiveApplicationService } from '../objective/objective.service';
+import { RepositoryApplicationService } from '../repository/repository.service';
 
 @Injectable()
 export class EngineService {
@@ -11,6 +12,7 @@ export class EngineService {
     private readonly workspaces: WorkspaceApplicationService,
     private readonly projects: ProjectApplicationService,
     private readonly objectives: ObjectiveApplicationService,
+    private readonly repositories: RepositoryApplicationService,
   ) {}
 
   async process(userId: string, message: string) {
@@ -19,12 +21,12 @@ export class EngineService {
   }
 
   private async parseIntent(userId: string, message: string) {
-    const systemPrompt = `Eres el motor de inteligencia de ForgeMind. Analiza el mensaje del usuario y determina QU� acci�n quiere realizar.
+    const systemPrompt = `Eres el motor de inteligencia de ForgeMind. Analiza el mensaje del usuario y determina QUÉ acción quiere realizar.
 
     Acciones disponibles:
     - create: crear workspace, project u objective
     - update: actualizar estado/progreso de objective
-    - list: listar workspaces, projects u objectives
+    - list: listar workspaces, projects, objectives o github_repos
     - detail: ver detalle de una entidad
     - delete: eliminar una entidad
 
@@ -32,15 +34,16 @@ export class EngineService {
     - workspace: name, description, ownerId (userId)
     - project: name, description, workspaceId
     - objective (tambien llamado task o tarea): title, description, tags[], projectId, status, progress
+    - github_repo (tambien llamado repo, repositorio de github): repositorios del usuario en GitHub
 
     Contexto: userId=${userId}
 
     Responde SOLO con JSON, SIN markdown, SIN formato, SIN texto adicional:
     {
       "action": "create|update|list|detail|delete",
-      "entity": "workspace|project|objective",
-      "data": { campos necesarios para la acci�n },
-      "search": "t�rmino de b�squeda si aplica"
+      "entity": "workspace|project|objective|github_repo",
+      "data": { campos necesarios para la acción },
+      "search": "término de búsqueda si aplica"
     }`;
 
     const result = await this.gemini.chat([
@@ -48,7 +51,7 @@ export class EngineService {
       { role: 'user', content: message },
     ]);
 
-    const cleaned = result.reply.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+    const cleaned = result.reply.replace(/```json/g, '').replace(/```/g, '').trim();
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
     if (!jsonMatch) throw new Error('No se pudo interpretar la solicitud');
 
@@ -56,7 +59,13 @@ export class EngineService {
   }
 
   private async execute(userId: string, parsed: { action: string; entity: string; data: Record<string, unknown>; search?: string }) {
-    const aliases: Record<string, string> = { task: 'objective', tarea: 'objective' };
+    const aliases: Record<string, string> = { 
+      task: 'objective', 
+      tarea: 'objective',
+      repo: 'github_repo',
+      repositorio: 'github_repo',
+      repositorios: 'github_repo',
+    };
     const entity = aliases[parsed.entity] || parsed.entity;
     const { action, data } = parsed;
 
@@ -73,6 +82,17 @@ export class EngineService {
         const list = await this.objectives.findByProjectId(data.projectId as string);
         return { type: 'list', entity: 'objective', items: list, message: `Tienes ${list.length} objetivo${list.length !== 1 ? 's' : ''}` };
       }
+      if (entity === 'github_repo') {
+        try {
+          const username = data.username as string | undefined;
+          const list = await this.repositories.fetchGitHubRepositories(username);
+          return { type: 'list', entity: 'github_repo', items: list, message: `Tienes ${list.length} repositorio${list.length !== 1 ? 's' : ''} en GitHub` };
+        } catch (e: unknown) {
+          const err = e as Error;
+          return { type: 'error', message: `No se pudieron obtener los repositorios de GitHub: ${err.message}` };
+        }
+      }
+
     }
 
     if (action === 'create') {

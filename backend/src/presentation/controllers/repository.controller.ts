@@ -1,12 +1,20 @@
-import { Controller, Post, Get, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Delete } from '@nestjs/common';
 import { RepositoryApplicationService } from '../../application/repository/repository.service';
 
 @Controller('repositories')
 export class RepositoryController {
   constructor(private readonly repositoryService: RepositoryApplicationService) {}
 
+  @Get('github')
+  async getGitHubRepositories(@Query('username') username?: string) {
+    const repos = await this.repositoryService.fetchGitHubRepositories(username);
+    return { repositories: repos };
+  }
+
+
   @Post('connect')
   async connect(
+
     @Body('projectId') projectId: string,
     @Body('owner') owner: string,
     @Body('name') name: string,

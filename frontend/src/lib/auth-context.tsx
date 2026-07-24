@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { auth } from '@/lib/firebase';
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import { api } from '@/lib/api';
 
 interface AuthUser {
@@ -16,6 +16,7 @@ interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
+  loginWithGithub: () => Promise<void>;
   logout: () => Promise<void>;
   token: string | null;
 }
@@ -24,6 +25,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   loginWithGoogle: async () => {},
+  loginWithGithub: async () => {},
   logout: async () => {},
   token: null,
 });
@@ -52,6 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       } else {
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('github_token');
         setToken(null);
         setUser(null);
       }
@@ -65,18 +68,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signInWithPopup(auth, provider);
   };
 
+  const loginWithGithub = async () => {
+    const provider = new GithubAuthProvider();
+    provider.addScope('repo');
+    const result = await signInWithPopup(auth, provider);
+    const credential = GithubAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      localStorage.setItem('github_token', credential.accessToken);
+    }
+  };
+
   const logout = async () => {
     await signOut(auth);
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('github_token');
     setUser(null);
     setToken(null);
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, logout, token }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithGithub, logout, token }}>
       {children}
     </AuthContext.Provider>
   );
 }
+
 
 export const useAuth = () => useContext(AuthContext);

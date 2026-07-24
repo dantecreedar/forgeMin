@@ -10,7 +10,9 @@ const navItems = [
   { href: '/dashboard', label: 'Dashboard' },
   { href: '/workspaces', label: 'Workspaces' },
   { href: '/objectives', label: 'Objectives' },
+  { href: '/repositories', label: 'Repositories' },
 ];
+
 
 export function Sidebar() {
   const pathname = usePathname();

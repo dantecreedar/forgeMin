@@ -1,20 +1,58 @@
 import { Injectable } from '@nestjs/common';
 import { Octokit } from '@octokit/rest';
 import { IGitHubClient } from './github-client.interface';
-import { IBranch, ICommit, IPullRequest, IIssue, IRelease } from '../../domain/repository/github-data.entity';
+import { IBranch, ICommit, IPullRequest, IIssue, IRelease, IGitHubRepo } from '../../domain/repository/github-data.entity';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
 export class GitHubClientService implements IGitHubClient {
-  private octokit: Octokit;
+  private get token(): string | undefined {
+    return process.env.GITHUB_TOKEN || process.env.GITHUB_API;
+  }
 
-  constructor() {
-    this.octokit = new Octokit({
-      auth: process.env.GITHUB_TOKEN,
+  private get octokit(): Octokit {
+    return new Octokit({
+      auth: this.token,
     });
   }
 
+  async getUserRepositories(username?: string, visibility: 'all' | 'public' | 'private' = 'all'): Promise<IGitHubRepo[]> {
+    let data;
+    if (username) {
+      const res = await this.octokit.repos.listForUser({
+        username,
+        sort: 'updated',
+        per_page: 100,
+      });
+      data = res.data;
+    } else {
+      if (!this.token) {
+        throw new Error('Falta configurar la variable GITHUB_TOKEN en backend/.env para autenticar con tu cuenta de GitHub.');
+      }
+      const res = await this.octokit.repos.listForAuthenticatedUser({
+
+        visibility,
+        sort: 'updated',
+        per_page: 100,
+      });
+      data = res.data;
+    }
+
+    return data.map((repo) => ({
+      id: repo.id,
+      name: repo.name,
+      fullName: repo.full_name,
+      owner: repo.owner.login,
+      defaultBranch: repo.default_branch || 'main',
+      isPrivate: repo.private,
+      htmlUrl: repo.html_url,
+      description: repo.description ?? undefined,
+      updatedAt: repo.updated_at ? new Date(repo.updated_at) : undefined,
+    }));
+  }
+
   async getBranches(owner: string, repo: string): Promise<IBranch[]> {
+
     const { data } = await this.octokit.repos.listBranches({ owner, repo });
     const defaultBranch = await this.getDefaultBranch(owner, repo);
     return data.map((b) => ({

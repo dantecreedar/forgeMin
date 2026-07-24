@@ -73,3 +73,16 @@ export interface IRelease {
   createdAt: Date;
   url: string;
 }
+
+export interface IGitHubRepo {
+  id: number;
+  name: string;
+  fullName: string;
+  owner: string;
+  defaultBranch: string;
+  isPrivate: boolean;
+  htmlUrl: string;
+  description?: string;
+  updatedAt?: Date;
+}
+

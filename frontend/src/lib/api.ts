@@ -55,4 +55,15 @@ export const api = {
     delete: (id: string) =>
       fetch(`${API_BASE}/objectives/${id}`, { method: 'DELETE', headers: getHeaders() }).then((r) => r.json()),
   },
+  repositories: {
+    listGitHub: (username?: string) =>
+      fetch(`${API_BASE}/repositories/github${username ? `?username=${encodeURIComponent(username)}` : ''}`, { headers: getHeaders() }).then((r) => r.json()),
+    connect: (projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]) =>
+      fetch(`${API_BASE}/repositories/connect`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ projectId, owner, name, defaultBranch, monitoredBranches }),
+      }).then((r) => r.json()),
+  },
 };
+
