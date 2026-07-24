@@ -1,0 +1,41 @@
+{
+  "name": "@forgemind/backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "start": "node dist/main",
+    "lint": "eslint \"{src,test}/**/*.ts\""
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/schedule": "^5.0.0",
+    "firebase-admin": "^13.0.0",
+    "@google-cloud/firestore": "^7.0.0",
+    "@google-cloud/pubsub": "^4.0.0",
+    "@google/generative-ai": "^0.24.0",
+    "@octokit/rest": "^21.0.0",
+    "@octokit/webhooks": "^13.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0",
+    "class-validator": "^0.14.0",
+    "class-transformer": "^0.5.0",
+    "zod": "^3.24.0",
+    "uuid": "^11.0.0"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@types/node": "^22.0.0",
+    "@types/uuid": "^10.0.0",
+    "typescript": "~5.7.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.4.0",
+    "ts-node": "^10.9.0"
+  }
+}

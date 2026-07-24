@@ -1,0 +1,137 @@
+import { Injectable } from '@nestjs/common';
+import { GeminiService } from '../../infrastructure/gemini/gemini.service';
+import { WorkspaceApplicationService } from '../workspace/workspace.service';
+import { ProjectApplicationService } from '../project/project.service';
+import { ObjectiveApplicationService } from '../objective/objective.service';
+
+@Injectable()
+export class EngineService {
+  constructor(
+    private readonly gemini: GeminiService,
+    private readonly workspaces: WorkspaceApplicationService,
+    private readonly projects: ProjectApplicationService,
+    private readonly objectives: ObjectiveApplicationService,
+  ) {}
+
+  async process(userId: string, message: string) {
+    const parsed = await this.parseIntent(userId, message);
+    return this.execute(parsed);
+  }
+
+  private async parseIntent(userId: string, message: string) {
+    const systemPrompt = `Eres el motor de inteligencia de ForgeMind. Analiza el mensaje del usuario y determina QU� acci�n quiere realizar.
+
+    Acciones disponibles:
+    - create: crear workspace, project u objective
+    - update: actualizar estado/progreso de objective
+    - list: listar workspaces, projects u objectives
+    - detail: ver detalle de una entidad
+    - delete: eliminar una entidad
+
+    Entidades disponibles:
+    - workspace: name, description, ownerId (userId)
+    - project: name, description, workspaceId
+    - objective: title, description, tags[], projectId, status, progress
+
+    Contexto: userId=${userId}
+
+    Responde SOLO con JSON, SIN markdown, SIN formato, SIN texto adicional:
+    {
+      "action": "create|update|list|detail|delete",
+      "entity": "workspace|project|objective",
+      "data": { campos necesarios para la acci�n },
+      "search": "t�rmino de b�squeda si aplica"
+    }`;
+
+    const result = await this.gemini.chat([
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: message },
+    ]);
+
+    const cleaned = result.reply.replace(/\`\`\`json/g, '').replace(/\`\`\`/g, '').trim();
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('No se pudo interpretar la solicitud');
+
+    return JSON.parse(jsonMatch[0]);
+  }
+
+  private async execute(parsed: { action: string; entity: string; data: Record<string, unknown>; search?: string }) {
+    const { action, entity, data } = parsed;
+
+    if (action === 'list') {
+      if (entity === 'workspace') {
+        const list = await this.workspaces.findByUser(data.ownerId as string || 'default');
+        return { type: 'list', entity: 'workspace', items: list, message: `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}` };
+      }
+      if (entity === 'project') {
+        const list = await this.projects.findByWorkspaceId(data.workspaceId as string);
+        return { type: 'list', entity: 'project', items: list, message: `Tienes ${list.length} proyecto${list.length !== 1 ? 's' : ''}` };
+      }
+      if (entity === 'objective') {
+        const list = await this.objectives.findByProjectId(data.projectId as string);
+        return { type: 'list', entity: 'objective', items: list, message: `Tienes ${list.length} objetivo${list.length !== 1 ? 's' : ''}` };
+      }
+    }
+
+    if (action === 'create') {
+      if (entity === 'workspace') {
+        const ws = await this.workspaces.create(data.name as string, data.ownerId as string || 'default', data.description as string);
+        return { type: 'created', entity: 'workspace', item: ws, message: `Workspace "${ws.name}" creado exitosamente` };
+      }
+      if (entity === 'project') {
+        const proj = await this.projects.create(data.workspaceId as string, data.name as string, data.description as string);
+        return { type: 'created', entity: 'project', item: proj, message: `Proyecto "${proj.name}" creado exitosamente` };
+      }
+      if (entity === 'objective') {
+        const projId = data.projectId as string;
+        const obj = await this.objectives.create(projId, data.title as string, data.description as string, data.tags as string[]);
+        return { type: 'created', entity: 'objective', item: obj, message: `Objetivo "${obj.title}" creado exitosamente` };
+      }
+    }
+
+    if (action === 'update' && entity === 'objective') {
+      const updated = await this.objectives.updateStatus(
+        data.id as string,
+        data.status as any,
+        (data.progress as number) ?? 0,
+        data.summary as string,
+        data.risks as string[],
+        data.blockers as string[],
+        data.nextSteps as string[],
+      );
+      return { type: 'updated', entity: 'objective', item: updated, message: `Objetivo "${updated.title}" actualizado` };
+    }
+
+    if (action === 'detail') {
+      if (entity === 'workspace') {
+        const item = await this.workspaces.findById(data.id as string);
+        return { type: 'detail', entity: 'workspace', item };
+      }
+      if (entity === 'project') {
+        const item = await this.projects.findById(data.id as string);
+        return { type: 'detail', entity: 'project', item };
+      }
+      if (entity === 'objective') {
+        const item = await this.objectives.findById(data.id as string);
+        return { type: 'detail', entity: 'objective', item };
+      }
+    }
+
+    if (action === 'delete') {
+      if (entity === 'objective') {
+        await this.objectives.delete(data.id as string);
+        return { type: 'deleted', entity: 'objective', message: 'Objetivo eliminado' };
+      }
+      if (entity === 'project') {
+        await this.projects.delete(data.id as string);
+        return { type: 'deleted', entity: 'project', message: 'Proyecto eliminado' };
+      }
+      if (entity === 'workspace') {
+        await this.workspaces.archive(data.id as string);
+        return { type: 'deleted', entity: 'workspace', message: 'Workspace archivado' };
+      }
+    }
+
+    throw new Error(`No se pudo ejecutar: ${action} ${entity}`);
+  }
+}
