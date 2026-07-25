@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { AlertCircle, Sparkles } from 'lucide-react';
+import { ArrowUp, Sparkles, Folder, Target, FolderGit2 } from 'lucide-react';
 import { GraphCard } from '@/components/chat/graph-card';
 
 interface Message {
@@ -22,9 +22,9 @@ export default function DashboardPage() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const send = async () => {
-    if (!input.trim() || loading) return;
-    const text = input.trim();
+  const send = async (textToSend?: string) => {
+    const text = (textToSend || input).trim();
+    if (!text || loading) return;
     setInput('');
     setMessages((prev) => [...prev, { role: 'user', content: text }]);
     setLoading(true);
@@ -46,53 +46,86 @@ export default function DashboardPage() {
     }
   };
 
+  const quickPrompts = [
+    { label: 'Ver Proyectos', query: 'muestrame los proyectos', icon: Folder },
+    { label: 'Crear Proyecto', query: 'crea un proyecto llamado App Movil', icon: Sparkles },
+    { label: 'Ver Objetivos', query: 'muestrame los objetivos', icon: Target },
+  ];
+
   return (
-    <div className="flex-1 flex flex-col h-full bg-gray-50/50">
+    <div className="flex-1 flex flex-col h-full bg-[#f8fafd]">
       <AnimatePresence mode="wait">
         {messages.length === 0 ? (
           <motion.div
             key="empty"
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            className="flex-1 flex flex-col items-center justify-center px-4"
+            exit={{ opacity: 0, y: -12 }}
+            className="flex-1 flex flex-col items-center justify-center px-4 max-w-2xl mx-auto w-full text-center"
           >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center mb-3 text-primary"
-            >
-              <Sparkles size={24} className="text-amber-500" />
-            </motion.div>
+            {/* Gemini Studio Title Style */}
             <motion.h1
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="text-2xl font-bold text-foreground mb-1"
+              transition={{ delay: 0.05 }}
+              className="text-3xl font-medium tracking-tight text-slate-800 mb-2"
             >
-              ForgeMind Intelligence
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+                ForgeMind
+              </span>{' '}
+              Intelligence
             </motion.h1>
             <motion.p
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.2 }}
-              className="text-xs text-muted-foreground mb-8 text-center max-w-sm leading-relaxed"
+              transition={{ delay: 0.12 }}
+              className="text-sm text-slate-500 mb-9 font-normal leading-relaxed max-w-md"
             >
-              Crea proyectos, asigna objetivos y conecta repositorios de GitHub. Escribe libremente con autocorrecion.
+              Hola. Gestiona tus proyectos, objetivos y repositorios de GitHub mediante instrucciones de IA.
             </motion.p>
+
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
-              className="w-full max-w-xl"
+              transition={{ delay: 0.2 }}
+              className="w-full space-y-4"
             >
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && send()}
-                placeholder="Prueba escribir: 'muestrame los proyectos' o 'crea un proyecto llamado App Movil'"
-                className="w-full bg-white border border-border rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none shadow-sm focus:ring-2 focus:ring-primary/20 transition-all"
-              />
+              {/* Gemini Studio Prompt Composer Input Box */}
+              <div className="relative flex items-center bg-white border border-slate-200/90 rounded-3xl shadow-sm hover:shadow-md focus-within:shadow-md focus-within:border-blue-500/50 transition-all px-4 py-2">
+                <input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && send()}
+                  placeholder="Introduce una consulta o instrucción..."
+                  className="w-full bg-transparent px-2 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
+                  autoFocus
+                />
+                <button
+                  onClick={() => send()}
+                  disabled={loading || !input.trim()}
+                  className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-30 hover:bg-blue-600 transition-all shrink-0 shadow-xs"
+                  title="Enviar instrucción"
+                >
+                  <ArrowUp size={18} />
+                </button>
+              </div>
+
+              {/* Gemini Studio Prompt Pill Cards */}
+              <div className="flex flex-wrap justify-center gap-2 pt-3">
+                {quickPrompts.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.query}
+                      onClick={() => send(item.query)}
+                      className="flex items-center gap-2 text-xs bg-white hover:bg-slate-100/80 text-slate-700 border border-slate-200/80 px-4 py-2 rounded-2xl transition-all shadow-2xs font-medium"
+                    >
+                      <Icon size={14} className="text-blue-600" />
+                      <span>{item.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </motion.div>
           </motion.div>
         ) : (
@@ -116,8 +149,8 @@ export default function DashboardPage() {
                       <div
                         className={`px-4 py-3 text-sm leading-relaxed rounded-2xl ${
                           msg.role === 'user'
-                            ? 'bg-primary text-white shadow-md rounded-br-none'
-                            : 'bg-white text-foreground border border-border shadow-xs rounded-bl-none'
+                            ? 'bg-blue-600 text-white shadow-xs rounded-br-none font-medium'
+                            : 'bg-white text-slate-800 border border-slate-200/90 shadow-2xs rounded-bl-none'
                         }`}
                       >
                         {msg.content}
@@ -137,10 +170,10 @@ export default function DashboardPage() {
                     animate={{ opacity: 1 }}
                     className="flex justify-start"
                   >
-                    <div className="bg-white border border-border rounded-2xl p-4 shadow-xs space-y-2 w-64">
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Sparkles size={14} className="animate-spin text-amber-500" />
-                        Analizando consulta...
+                    <div className="bg-white border border-slate-200/90 rounded-2xl p-4 shadow-2xs space-y-2 w-64">
+                      <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                        <Sparkles size={14} className="animate-spin text-blue-600" />
+                        Pensando...
                       </div>
                     </div>
                   </motion.div>
@@ -149,15 +182,23 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="border-t border-border p-4 bg-white">
-              <div className="max-w-2xl mx-auto">
+            {/* Bottom Input Area */}
+            <div className="border-t border-slate-200/80 p-4 bg-[#f8fafd]">
+              <div className="max-w-2xl mx-auto flex items-center gap-2 bg-white border border-slate-200/90 rounded-3xl px-4 py-2 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-2xs">
                 <input
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && send()}
-                  placeholder="Escribe un mensaje o instrucción..."
-                  className="w-full bg-gray-50 border border-border rounded-xl px-5 py-3.5 text-sm text-foreground placeholder:text-muted-foreground outline-none shadow-xs focus:ring-2 focus:ring-primary/20"
+                  placeholder="Introduce una consulta o instrucción..."
+                  className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none py-1.5 px-1"
                 />
+                <button
+                  onClick={() => send()}
+                  disabled={loading || !input.trim()}
+                  className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-30 hover:bg-blue-600 transition-all shrink-0 shadow-xs"
+                >
+                  <ArrowUp size={16} />
+                </button>
               </div>
             </div>
           </motion.div>
