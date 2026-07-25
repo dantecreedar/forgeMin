@@ -7,6 +7,7 @@ import { RepositoryApplicationService } from '../../application/repository/repos
 import { Inject } from '@nestjs/common';
 import { GITHUB_CLIENT, IGitHubClient } from '../../infrastructure/github/github-client.interface';
 import { GeminiService } from '../../infrastructure/gemini/gemini.service';
+import { LocalGitService, classifyBranch } from '../../infrastructure/git/local-git.service';
 
 @Controller('projects')
 export class ProjectController {
@@ -17,6 +18,7 @@ export class ProjectController {
     private readonly repositoryService: RepositoryApplicationService,
     @Inject(GITHUB_CLIENT) private readonly githubClient: IGitHubClient,
     private readonly geminiService: GeminiService,
+    private readonly localGitService: LocalGitService,
   ) {}
 
   @Post()
@@ -103,67 +105,79 @@ Indica brevemente el propósito de la app.`;
   @Get(':id/git-activity')
   async getGitActivity(@Param('id') id: string) {
     const repos = await this.repositoryService.findByProjectId(id);
-    if (repos.length === 0) {
-      return { commits: [], pullRequests: [], explanation: 'Sin repositorios vinculados.' };
-    }
-    const repo = repos[0];
-    const [commits, prs] = await Promise.all([
-      this.githubClient.getCommits(repo.owner, repo.name, repo.defaultBranch).catch(() => []),
-      this.githubClient.getPullRequests(repo.owner, repo.name, 'all').catch(() => []),
+    const repo = repos.length > 0 ? repos[0] : null;
+
+    const [remoteCommits, prs, remoteBranches, localCommits, localStatus, localBranches] = await Promise.all([
+      repo ? this.githubClient.getCommits(repo.owner, repo.name, repo.defaultBranch).catch(() => []) : Promise.resolve([]),
+      repo ? this.githubClient.getPullRequests(repo.owner, repo.name, 'all').catch(() => []) : Promise.resolve([]),
+      repo ? this.githubClient.getBranches(repo.owner, repo.name).catch(() => []) : Promise.resolve([]),
+      this.localGitService.getLocalCommits(8).catch(() => []),
+      this.localGitService.getLocalStatus().catch(() => ({ hasUncommittedChanges: false, modifiedFiles: [], currentBranch: 'main' })),
+      this.localGitService.getLocalBranches().catch(() => []),
     ]);
 
-    let recentCommits = (commits || []).slice(0, 6);
-    const recentPrs = (prs || []).slice(0, 3);
+    let finalCommits = (remoteCommits || []).slice(0, 6).map((c) => ({ ...c, isLocal: false }));
+    let isLocalMode = false;
 
-    // Fallback: If no recent commits were returned, supply historical repository nodes
-    if (recentCommits.length === 0) {
-      recentCommits = [
-        {
-          id: 'init-1',
-          repositoryId: repo.id,
-          branchId: '',
-          sha: 'main-latest',
-          message: `Código base de ${repo.name} en rama ${repo.defaultBranch}`,
-          authorName: repo.owner,
-          authorEmail: '',
-          authorDate: new Date(),
-          filesChanged: [],
-          additions: 0,
-          deletions: 0,
-          url: `https://github.com/${repo.fullName}`,
-          createdAt: new Date(),
-        },
-      ];
+    if (finalCommits.length === 0) {
+      isLocalMode = true;
+      finalCommits = (localCommits || []).slice(0, 6).map((c) => ({ ...c, isLocal: true }));
     }
 
+    // Process all discovered branches & classify by environment (Producción, Desarrollo, QA)
+    let allBranches = isLocalMode || remoteBranches.length === 0
+      ? localBranches
+      : remoteBranches.map((b) => {
+          const cls = classifyBranch(b.name);
+          return {
+            name: b.name,
+            creatorName: repo?.owner || 'Colaborador',
+            relativeDate: 'Reciente',
+            sha: b.sha,
+            isDefault: b.isDefault,
+            ...cls,
+          };
+        });
 
-    const prompt = `Analiza estas últimas actividades de código de GitHub (commits y propuestas) y genera una EXPLICACIÓN EN ESPAÑOL SENCILLA Y FÁCIL DE ENTENDER para personas no técnicas (ej. clientes, gerentes, usuarios):
+    if (allBranches.length === 0) {
+      const cls = classifyBranch(repo?.defaultBranch || localStatus.currentBranch || 'main');
+      allBranches = [{ name: repo?.defaultBranch || localStatus.currentBranch || 'main', creatorName: repo?.owner || 'Desarrollador', relativeDate: 'Reciente', sha: 'main', isDefault: true, ...cls }];
+    }
 
-REGLAS ESTRICTAS:
-- NO uses palabras técnicas como "SHA", "merge", "pull request", "ref", "commit hash", "branch".
-- Describe en 2 o 3 oraciones sencillas qué estado o avances presenta el proyecto.
-- NUNCA uses asteriscos (*, **, ***) para dar formato. Usa texto plano limpio.
+    const hasMultipleBranches = allBranches.length > 1;
+    const defaultBranch = repo?.defaultBranch || localStatus.currentBranch || 'main';
+    const repoName = repo?.fullName || 'Repositorio Local';
+    const recentPrs = (prs || []).slice(0, 3);
+
+    const prompt = `Describe ÚNICAMENTE Y DIRECTAMENTE qué cambios o avances se realizaron en el código según estos commits.
+REGLA ESTRICTA Y ABSOLUTA: NO escribas introducciones, NO escribas 'Aquí tienen un resumen', NO escribas 'Resumen de avances', NO saludes. Empieza la primera palabra directamente nombrando lo que se hizo en el proyecto.
 
 Commits del proyecto:
-${recentCommits.map((c) => `- Actividad: "${c.message}" por ${c.authorName}`).join('\n')}
+${finalCommits.map((c) => `- Actividad: "${c.message}" por ${c.authorName}`).join('\n')}
 
-Propuestas de cambio (PRs):
-${recentPrs.map((p) => `- Título: "${p.title}" (Estado: ${p.state})`).join('\n')}`;
+${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.modifiedFiles.length} archivos modificados.` : ''}`;
 
-    let plainExplanation = `El proyecto se encuentra sincronizado con el repositorio ${repo.fullName} en la rama ${repo.defaultBranch}.`;
+    let plainExplanation = `El proyecto se encuentra actualizado en la rama ${defaultBranch}.`;
     try {
       const aiRes = await this.geminiService.chat([{ role: 'user', content: prompt }]);
-      plainExplanation = aiRes.reply.replace(/\*{1,3}/g, '').trim();
+      plainExplanation = aiRes.reply
+        .replace(/\*{1,3}/g, '')
+        .replace(/^.*?(aquí (tienen|tienes)|en este resumen|a continuación|resumen de|avances recientes):?\s*/gi, '')
+        .replace(/^Aquí tienen[\s\S]*?:/gi, '')
+        .trim();
     } catch {}
 
     return {
-      repoName: repo.fullName,
-      defaultBranch: repo.defaultBranch,
-      commits: recentCommits,
+      repoName,
+      defaultBranch,
+      commits: finalCommits,
       pullRequests: recentPrs,
+      branches: allBranches,
+      hasMultipleBranches,
+      localStatus,
+      isLocalMode,
       explanation: plainExplanation,
     };
-
   }
 
   @Get(':id')

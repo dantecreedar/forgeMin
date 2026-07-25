@@ -403,8 +403,8 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
-        {/* Live Git Activity Graph & Plain Language Explanation */}
-        {connectedRepos.length > 0 && (
+        {/* Live Git Activity Graph & Development Timeline */}
+        {(connectedRepos.length > 0 || gitActivity) && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
@@ -413,25 +413,134 @@ export default function ProjectDetailPage() {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                    Grafo de Cambios Recientes (Commits & Pushes)
+                    Grafo Visual de Desarrollo (Commits & Pushes)
                     <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
                       En vivo
                     </span>
+                    {gitActivity?.isLocalMode ? (
+                      <span className="text-[10px] font-mono bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full">
+                        Git Local Workspace
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-mono bg-purple-50 text-purple-700 border border-purple-200 px-2 py-0.5 rounded-full">
+                        GitHub Remote
+                      </span>
+                    )}
                   </h3>
-                  <p className="text-[10px] text-slate-400">Historial visual de código actualizado en tiempo real</p>
+                  <p className="text-[10px] text-slate-400">Flujo visual de desarrollo y control de versiones en tiempo real</p>
                 </div>
               </div>
               {loadingActivity && <span className="text-[10px] font-medium text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full animate-pulse">Obteniendo actividad...</span>}
             </div>
 
+            {/* Clean White Card Showing Only What Was Done */}
+            {gitActivity?.explanation && (
+              <div className="bg-white border border-slate-200 rounded-xl p-4 shadow-2xs text-left">
+                <p className="text-xs text-slate-700 leading-relaxed font-sans font-medium whitespace-pre-wrap">
+                  {gitActivity.explanation.replace(/^.*?(aquí (tienen|tienes)|en este resumen|a continuación|resumen de|avances recientes):?\s*/gi, '').trim()}
+                </p>
+              </div>
+            )}
 
+            {/* Branches Discovery Block */}
+            <div className="space-y-2 pt-1 border-t border-slate-100">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                  Ramas del Repositorio ({gitActivity?.branches?.length || 1})
+                </span>
+                {!gitActivity?.hasMultipleBranches && (
+                  <span className="text-[10px] font-medium text-slate-500 bg-slate-100 px-2.5 py-0.5 rounded-full">
+                    Rama única activa: {gitActivity?.defaultBranch || 'main'}
+                  </span>
+                )}
+              </div>
 
-            {/* Visual Node Graph Flow */}
-            {gitActivity?.commits && gitActivity.commits.length > 0 ? (
-              <div className="space-y-3 pt-1">
-                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Flujo Visual de Cambios (Grafo):</p>
-                <div className="relative pl-6 space-y-3 border-l-2 border-slate-200">
-                  {gitActivity.commits.map((commit: any, idx: number) => (
+              {gitActivity?.branches && gitActivity.branches.length > 0 ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {gitActivity.branches.map((b: any, idx: number) => {
+                    const typeColors: Record<string, string> = {
+                      production: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+                      development: 'bg-blue-50 text-blue-700 border-blue-200',
+                      qa: 'bg-amber-50 text-amber-700 border-amber-200',
+                      feature: 'bg-purple-50 text-purple-700 border-purple-200',
+                    };
+                    const badgeClass = typeColors[b.type] || typeColors.feature;
+                    const label = b.categoryLabel || (b.type === 'production' ? 'Producción' : b.type === 'development' ? 'Desarrollo' : b.type === 'qa' ? 'Pruebas QA' : 'Característica');
+
+                    return (
+                      <div
+                        key={b.name + idx}
+                        className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 flex items-center justify-between text-left group hover:bg-slate-100/80 transition-colors"
+                      >
+                        <div className="min-w-0 flex-1 space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="font-mono text-xs font-bold text-slate-900 truncate">
+                              {b.name}
+                            </span>
+                            <span className={`text-[9px] font-semibold border px-1.5 py-0.2 rounded-md ${badgeClass}`}>
+                              {label}
+                            </span>
+                            {b.isDefault && (
+                              <span className="text-[9px] bg-slate-200 text-slate-800 font-semibold px-1.5 py-0.2 rounded font-mono">
+                                Principal
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-slate-500 truncate">
+                            Por: <strong className="text-slate-700 font-medium">{b.creatorName}</strong>
+                          </p>
+                        </div>
+                        <span className="text-[9px] font-mono text-slate-400 bg-white border border-slate-200 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                          {b.relativeDate}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs text-slate-600">
+                  Solo existe 1 rama activa en este repositorio (<strong>{gitActivity?.defaultBranch || 'main'}</strong>). No hay ramas secundarias adicionales registradas.
+                </div>
+              )}
+            </div>
+
+            {/* Visual Node Graph Pipeline Flow */}
+            <div className="space-y-3 pt-1">
+              <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                <span>Flujo de Ramas & Pipeline de Código:</span>
+                <span className="text-[10px] font-mono font-normal text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                  Rama: {gitActivity?.defaultBranch || 'main'}
+                </span>
+              </p>
+
+              <div className="relative pl-6 space-y-3 border-l-2 border-gradient-to-b from-purple-500 to-indigo-500">
+                {/* Active Working Tree Node (Local Uncommitted Work) */}
+                {gitActivity?.localStatus?.hasUncommittedChanges && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="relative group"
+                  >
+                    <div className="absolute -left-[31px] top-2.5 w-4 h-4 rounded-full bg-amber-500 border-2 border-white ring-4 ring-amber-100 animate-pulse" />
+                    <div className="bg-amber-50/90 border border-amber-200 rounded-xl p-3 space-y-1 text-left">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                          ⚡ Trabajo Local en Desarrollo (Sin Commit)
+                        </span>
+                        <span className="text-[9px] font-mono font-semibold bg-amber-200/80 text-amber-900 px-2 py-0.5 rounded-md">
+                          EN PROGRESO
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-amber-800">
+                        {gitActivity.localStatus.modifiedFiles.length} archivo(s) modificados listos para ser guardados en el historial.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+
+                {/* Commit History Flow Nodes */}
+                {gitActivity?.commits && gitActivity.commits.length > 0 ? (
+                  gitActivity.commits.map((commit: any, idx: number) => (
                     <motion.div
                       key={commit.sha || idx}
                       initial={{ opacity: 0, x: -10 }}
@@ -439,40 +548,54 @@ export default function ProjectDetailPage() {
                       transition={{ delay: idx * 0.04 }}
                       className="relative group"
                     >
-                      {/* Node Bullet */}
-                      <div className="absolute -left-[31px] top-2 w-3.5 h-3.5 rounded-full bg-purple-600 border-2 border-white shadow-xs group-hover:scale-125 transition-transform" />
+                      {/* Branch Pipeline Node Bullet */}
+                      <div className={`absolute -left-[31px] top-3 w-3.5 h-3.5 rounded-full border-2 border-white shadow-xs group-hover:scale-125 transition-transform ${
+                        commit.isLocal ? 'bg-blue-600' : 'bg-purple-600'
+                      }`} />
 
-                      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 hover:bg-slate-100/70 transition-colors space-y-1">
+                      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3.5 hover:bg-slate-100/80 transition-colors space-y-1.5 text-left">
                         <div className="flex items-center justify-between gap-2">
                           <p className="text-xs font-semibold text-slate-900 truncate flex-1">
                             {commit.message}
                           </p>
-                          {commit.url && (
+                          {commit.url ? (
                             <a
                               href={commit.url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-[10px] text-purple-600 font-mono hover:underline shrink-0"
+                              className="text-[10px] text-purple-600 font-mono hover:underline shrink-0 bg-purple-50 px-2 py-0.5 rounded"
                             >
-                              #{commit.sha?.substring(0, 7)} <ExternalLink size={10} className="inline" />
+                              #{commit.sha?.substring(0, 7)} <ExternalLink size={9} className="inline" />
                             </a>
+                          ) : (
+                            <span className="text-[10px] text-slate-500 font-mono bg-slate-200 px-2 py-0.5 rounded">
+                              #{commit.sha?.substring(0, 7) || 'local'}
+                            </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
-                          <span>Por: <strong className="text-slate-600 font-medium">{commit.authorName}</strong></span>
-                          <span>•</span>
-                          <span>Rama: <strong className="text-purple-700 font-mono">{gitActivity.defaultBranch || 'main'}</strong></span>
+
+                        <div className="flex items-center justify-between text-[10px] text-slate-500 pt-0.5">
+                          <div className="flex items-center gap-2">
+                            <span>Por: <strong className="text-slate-700 font-medium">{commit.authorName}</strong></span>
+                            <span>•</span>
+                            <span>Rama: <strong className="text-purple-700 font-mono">{gitActivity.defaultBranch || 'main'}</strong></span>
+                          </div>
+                          <span className={`px-2 py-0.5 rounded font-mono text-[9px] font-semibold ${
+                            commit.isLocal ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'
+                          }`}>
+                            {commit.isLocal ? 'Git Local' : 'GitHub'}
+                          </span>
                         </div>
                       </div>
                     </motion.div>
-                  ))}
-                </div>
+                  ))
+                ) : !loadingActivity ? (
+                  <p className="text-xs text-slate-400 italic py-2">
+                    Aún no hay commits o pushes registrados en este repositorio.
+                  </p>
+                ) : null}
               </div>
-            ) : !loadingActivity ? (
-              <p className="text-xs text-slate-400 italic py-2">
-                Aún no hay commits o pushes registrados en este repositorio.
-              </p>
-            ) : null}
+            </div>
           </div>
         )}
 

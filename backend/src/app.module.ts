@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 
 import { DeepSeekService } from './infrastructure/deepseek/deepseek.service';
 import { GitHubClientService } from './infrastructure/github/github-client.service';
+import { LocalGitService } from './infrastructure/git/local-git.service';
 import { GeminiService } from './infrastructure/gemini/gemini.service';
 import { FirebaseAuthService } from './infrastructure/firebase/firebase-auth.service';
 import { FirebaseModule } from './infrastructure/firebase/firebase.module';
@@ -115,6 +116,7 @@ const firestoreProviders = [
     ChatService,
     EngineService,
     GeminiService,
+    LocalGitService,
     { provide: GITHUB_CLIENT, useClass: GitHubClientService },
     { provide: AUTH_SERVICE, useClass: FirebaseAuthService },
     ...firestoreProviders,
