@@ -665,11 +665,6 @@ export default function ProjectDetailPage() {
                           <td className="p-3 text-slate-600 leading-relaxed text-[11px]">
                             {obj.summary || <span className="text-slate-400 italic">Pendiente de sincronizar</span>}
                           </td>
-                          <td className="p-3 text-center">
-                            <button onClick={() => deleteObjective(obj.id)} className="text-slate-400 hover:text-red-500">
-                              <Trash2 size={13} />
-                            </button>
-                          </td>
                         </tr>
                       );
                     })}
@@ -680,6 +675,155 @@ export default function ProjectDetailPage() {
           )}
         </div>
       </div>
+
+      {/* Modal: Crear Objetivo */}
+      <AnimatePresence>
+        {showCreate && (
+          <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-border rounded-2xl p-6 w-full max-w-md shadow-xl space-y-4"
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="text-primary" size={20} />
+                  <h3 className="font-semibold text-foreground text-base">Nuevo Objetivo</h3>
+                </div>
+                <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {objCreateError && (
+                <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs">
+                  {objCreateError}
+                </div>
+              )}
+
+              <div className="space-y-3">
+                <input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createObjective()}
+                  placeholder="Título del objetivo (ej. Implementar Autenticación)"
+                  className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
+                  autoFocus
+                />
+                <textarea
+                  value={newDesc}
+                  onChange={(e) => setNewDesc(e.target.value)}
+                  placeholder="Descripción detallada o entregables (opcional)"
+                  className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none h-24"
+                />
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    onClick={createObjective}
+                    className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs"
+                  >
+                    Crear Objetivo
+                  </button>
+                  <button
+                    onClick={() => setShowCreate(false)}
+                    className="px-4 py-2.5 text-muted-foreground hover:bg-gray-100 rounded-xl text-sm font-medium"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Confirmación: Eliminar Proyecto */}
+      <AnimatePresence>
+        {confirmDelete && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-red-100 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">¿Eliminar Proyecto?</h3>
+                  <p className="text-xs text-slate-500">Confirmación de acción destructiva</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed bg-red-50/50 p-3 rounded-xl border border-red-100">
+                Esta acción no se puede deshacer. Se eliminarán los objetivos y configuraciones asociadas al proyecto <strong className="text-slate-900">{project.name}</strong>.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Sí, Eliminar Proyecto
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Modal de Confirmación: Eliminar Objetivo */}
+      <AnimatePresence>
+        {deletingObjId && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-white border border-red-100 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertCircle size={22} />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">¿Eliminar Objetivo?</h3>
+                  <p className="text-xs text-slate-500">Confirmar eliminación</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                ¿Estás seguro de que deseas borrar este objetivo? Se removerá del proyecto y del análisis de commits.
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => deleteObjective(deletingObjId)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-xs font-bold transition-colors shadow-sm flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Eliminar Objetivo
+                </button>
+                <button
+                  onClick={() => setDeletingObjId(null)}
+                  className="px-4 py-2.5 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
+
