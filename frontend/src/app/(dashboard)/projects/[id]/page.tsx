@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+
 import { useParams, useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
@@ -53,6 +54,8 @@ export default function ProjectDetailPage() {
   const [objCreateError, setObjCreateError] = useState<string | null>(null);
   const [analysisMessage, setAnalysisMessage] = useState<string | null>(null);
 
+  const hasFetchedReadmeRef = useRef(false);
+
   const loadData = async (autoAnalyze = false) => {
     if (!id) return;
     try {
@@ -69,14 +72,16 @@ export default function ProjectDetailPage() {
       setEditName(projRes.project?.name || '');
       setEditDesc(projRes.project?.description || '');
 
-      // Load README AI Summary if connected to GitHub
-      if ((repoRes.repositories || []).length > 0) {
+      // Load AI Summary ONLY ONCE if connected to GitHub
+      if ((repoRes.repositories || []).length > 0 && !hasFetchedReadmeRef.current) {
+        hasFetchedReadmeRef.current = true;
         setLoadingReadme(true);
         api.projects.getReadmeSummary(id)
           .then((res) => setReadmeSummary(res.summary))
           .catch(() => {})
           .finally(() => setLoadingReadme(false));
       }
+
 
       // Trigger automatic sync & analysis on mount if requested
       if (autoAnalyze) {
@@ -372,7 +377,8 @@ export default function ProjectDetailPage() {
 
                 </div>
               </div>
-              {loadingReadme && <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse">Analizando README...</span>}
+              {loadingReadme && <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse">Analizando proyecto...</span>}
+
             </div>
             {readmeSummary ? (
               <div className="text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-wrap pt-1 space-y-1">

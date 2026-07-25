@@ -170,38 +170,16 @@ export default function RepositoriesPage() {
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <FolderGit2 className="text-primary" size={24} />
-            <h1 className="text-2xl font-bold text-foreground">Repositorios de GitHub</h1>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Explora tus repositorios públicos, privados u organizacionales y vincúlalos a tus proyectos.
-          </p>
+      <div>
+        <div className="flex items-center gap-2">
+          <FolderGit2 className="text-primary" size={24} />
+          <h1 className="text-2xl font-bold text-foreground">Repositorios de GitHub</h1>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => setShowTokenModal(true)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border shadow-xs ${
-              hasCustomToken
-                ? 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100'
-                : 'bg-slate-900 text-white border-slate-800 hover:bg-slate-800'
-            }`}
-          >
-            {hasCustomToken ? <ShieldCheck size={14} className="text-purple-600" /> : <Key size={14} className="text-amber-400" />}
-            {hasCustomToken ? 'Token Privado Configurado' : 'Acceso Repos Privados / Empresa'}
-          </button>
-
-          <button
-            onClick={() => loadData(usernameInput ? usernameInput : undefined)}
-            className="flex items-center gap-2 px-4 py-2 bg-white border border-border hover:bg-gray-50 rounded-xl text-xs font-medium text-foreground transition-colors shadow-xs"
-          >
-            <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
-            Actualizar
-          </button>
-        </div>
+        <p className="text-sm text-muted-foreground mt-1">
+          Explora tus repositorios públicos, privados u organizacionales y vincúlalos a tus proyectos.
+        </p>
       </div>
+
 
       {/* Control Bar: Search & Visibility Filter */}
       <div className="flex flex-col md:flex-row items-center gap-3">

@@ -70,6 +70,7 @@ ${readmeContent.slice(0, 4000)}`;
 
       const res = await this.geminiService.chat([{ role: 'user', content: prompt }]);
       let cleaned = res.reply
+        .replace(/\*{1,3}/g, '') // Strip all *, **, *** markdown bold/italic formatting
         .replace(/Aquí tienes[\s\S]*?:/gi, '')
         .replace(/Este archivo README(\.md)? describe/gi, 'La aplicación es')
         .replace(/Este archivo README(\.md)?/gi, 'Esta aplicación')
@@ -81,8 +82,6 @@ ${readmeContent.slice(0, 4000)}`;
       return { summary: cleaned, repoName: repo.fullName };
     }
 
-
-
     // Fallback if no README file was found: generate summary from repository metadata
     const proj = await this.projectService.findById(id);
     const fallbackPrompt = `Genera un Resumen Ejecutivo de la aplicación en español basado en la información del repositorio y proyecto:
@@ -90,11 +89,14 @@ ${readmeContent.slice(0, 4000)}`;
 - Descripción del proyecto: ${proj?.description || 'Sin descripción provista.'}
 - Rama principal: ${repo.defaultBranch}
 
-Indica brevemente el propósito de la app e invita a agregar un archivo README.md al repositorio para análisis profundo.`;
+REGLA ESTRICTA: NO uses asterisco (*, **, ***) para formato. Usa texto plano limpio.
+Indica brevemente el propósito de la app.`;
 
     const res = await this.geminiService.chat([{ role: 'user', content: fallbackPrompt }]);
-    return { summary: res.reply, repoName: repo.fullName };
+    const cleanedFallback = res.reply.replace(/\*{1,3}/g, '').trim();
+    return { summary: cleanedFallback, repoName: repo.fullName };
   }
+
 
 
 
