@@ -11,6 +11,13 @@ import { LocalGitService, classifyBranch } from '../../infrastructure/git/local-
 
 @Controller('projects')
 export class ProjectController {
+  private gitActivityCache = new Map<string, {
+    latestSha: string;
+    hasUncommittedChanges: boolean;
+    modifiedFilesCount: number;
+    activity: any;
+  }>();
+
   constructor(
     private readonly projectService: ProjectApplicationService,
     private readonly syncEngineService: SyncEngineService,
@@ -144,6 +151,21 @@ Indica brevemente el propósito de la app.`;
       allBranches = [{ name: repo?.defaultBranch || localStatus.currentBranch || 'main', creatorName: repo?.owner || 'Desarrollador', relativeDate: 'Reciente', sha: 'main', isDefault: true, ...cls }];
     }
 
+    const latestSha = finalCommits[0]?.sha || 'none';
+    const hasUncommitted = localStatus.hasUncommittedChanges;
+    const modifiedCount = localStatus.modifiedFiles?.length || 0;
+
+    // Return cached result instantly if commit SHA and working status haven't changed!
+    const cached = this.gitActivityCache.get(id);
+    if (
+      cached &&
+      cached.latestSha === latestSha &&
+      cached.hasUncommittedChanges === hasUncommitted &&
+      cached.modifiedFilesCount === modifiedCount
+    ) {
+      return cached.activity;
+    }
+
     const hasMultipleBranches = allBranches.length > 1;
     const defaultBranch = repo?.defaultBranch || localStatus.currentBranch || 'main';
     const repoName = repo?.fullName || 'Repositorio Local';
@@ -167,7 +189,7 @@ ${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.
         .trim();
     } catch {}
 
-    return {
+    const resultActivity = {
       repoName,
       defaultBranch,
       commits: finalCommits,
@@ -177,7 +199,18 @@ ${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.
       localStatus,
       isLocalMode,
       explanation: plainExplanation,
+      updatedAt: new Date(),
     };
+
+    // Save payload to cache for future requests
+    this.gitActivityCache.set(id, {
+      latestSha,
+      hasUncommittedChanges: hasUncommitted,
+      modifiedFilesCount: modifiedCount,
+      activity: resultActivity,
+    });
+
+    return resultActivity;
   }
 
   @Get(':id')

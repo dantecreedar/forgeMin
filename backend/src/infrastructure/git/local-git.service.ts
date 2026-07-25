@@ -24,10 +24,10 @@ export interface ILocalBranch {
 
 export function classifyBranch(name: string): { type: 'production' | 'development' | 'qa' | 'feature'; categoryLabel: string } {
   const lower = name.toLowerCase();
-  if (lower === 'main' || lower === 'master' || lower.includes('prod')) {
+  if (lower === 'develop' || lower === 'dev' || lower.includes('development') || lower.includes('prod')) {
     return { type: 'production', categoryLabel: 'Producción' };
   }
-  if (lower === 'develop' || lower === 'dev' || lower.includes('development')) {
+  if (lower === 'main' || lower === 'master') {
     return { type: 'development', categoryLabel: 'Desarrollo' };
   }
   if (lower.includes('qa') || lower.includes('stage') || lower.includes('staging') || lower.includes('test')) {
