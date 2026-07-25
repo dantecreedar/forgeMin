@@ -8,6 +8,8 @@ import { useAuth } from '@/lib/auth-context';
 import { LogOut, LayoutDashboard, Folder, Target, FolderGit2, ChevronLeft, ChevronRight, Mail } from 'lucide-react';
 import { GlobalReportModal } from './global-report-modal';
 
+import { DeerIcon } from '../ui/deer-icon';
+
 const navItems = [
   { href: '/dashboard', label: 'Intelligence', icon: LayoutDashboard },
   { href: '/workspaces', label: 'Workspaces', icon: Folder },
@@ -40,14 +42,19 @@ export function Sidebar() {
       >
         {/* Sidebar Header with Toggle Button */}
         <div className="px-4 py-4 border-b border-sidebar-border flex items-center justify-between">
-          {!collapsed && (
-            <motion.span
+          {!collapsed ? (
+            <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-sm font-bold text-white tracking-wider"
+              className="flex items-center gap-2"
             >
-              ForgeMind
-            </motion.span>
+              <DeerIcon size={22} className="text-white shrink-0" />
+              <span className="text-sm font-bold text-white tracking-wider">
+                ForgeMind
+              </span>
+            </motion.div>
+          ) : (
+            <DeerIcon size={22} className="text-white shrink-0 mx-auto" />
           )}
           <button
             onClick={toggleCollapse}

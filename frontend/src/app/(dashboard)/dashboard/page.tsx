@@ -6,6 +6,8 @@ import { api } from '@/lib/api';
 import { ArrowUp, Sparkles, Folder, Target, FolderGit2 } from 'lucide-react';
 import { GraphCard } from '@/components/chat/graph-card';
 
+import { DeerIcon } from '@/components/ui/deer-icon';
+
 interface Message {
   role: 'user' | 'assistant';
   content: string;
@@ -83,9 +85,10 @@ export default function DashboardPage() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.05 }}
-              className="text-3xl font-medium tracking-tight text-slate-800 mb-2"
+              className="text-3xl font-medium tracking-tight text-slate-800 mb-2 flex items-center justify-center gap-2.5"
             >
-              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent font-semibold">
+              <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent font-semibold inline-flex items-center gap-2">
+                <DeerIcon size={32} className="text-blue-600 inline-block shrink-0" />
                 ForgeMind
               </span>{' '}
               Intelligence
