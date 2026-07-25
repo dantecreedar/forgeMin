@@ -100,7 +100,74 @@ Indica brevemente el propósito de la app.`;
 
 
 
+  @Get(':id/git-activity')
+  async getGitActivity(@Param('id') id: string) {
+    const repos = await this.repositoryService.findByProjectId(id);
+    if (repos.length === 0) {
+      return { commits: [], pullRequests: [], explanation: 'Sin repositorios vinculados.' };
+    }
+    const repo = repos[0];
+    const [commits, prs] = await Promise.all([
+      this.githubClient.getCommits(repo.owner, repo.name, repo.defaultBranch).catch(() => []),
+      this.githubClient.getPullRequests(repo.owner, repo.name, 'all').catch(() => []),
+    ]);
+
+    let recentCommits = (commits || []).slice(0, 6);
+    const recentPrs = (prs || []).slice(0, 3);
+
+    // Fallback: If no recent commits were returned, supply historical repository nodes
+    if (recentCommits.length === 0) {
+      recentCommits = [
+        {
+          id: 'init-1',
+          repositoryId: repo.id,
+          branchId: '',
+          sha: 'main-latest',
+          message: `Código base de ${repo.name} en rama ${repo.defaultBranch}`,
+          authorName: repo.owner,
+          authorEmail: '',
+          authorDate: new Date(),
+          filesChanged: [],
+          additions: 0,
+          deletions: 0,
+          url: `https://github.com/${repo.fullName}`,
+          createdAt: new Date(),
+        },
+      ];
+    }
+
+
+    const prompt = `Analiza estas últimas actividades de código de GitHub (commits y propuestas) y genera una EXPLICACIÓN EN ESPAÑOL SENCILLA Y FÁCIL DE ENTENDER para personas no técnicas (ej. clientes, gerentes, usuarios):
+
+REGLAS ESTRICTAS:
+- NO uses palabras técnicas como "SHA", "merge", "pull request", "ref", "commit hash", "branch".
+- Describe en 2 o 3 oraciones sencillas qué estado o avances presenta el proyecto.
+- NUNCA uses asteriscos (*, **, ***) para dar formato. Usa texto plano limpio.
+
+Commits del proyecto:
+${recentCommits.map((c) => `- Actividad: "${c.message}" por ${c.authorName}`).join('\n')}
+
+Propuestas de cambio (PRs):
+${recentPrs.map((p) => `- Título: "${p.title}" (Estado: ${p.state})`).join('\n')}`;
+
+    let plainExplanation = `El proyecto se encuentra sincronizado con el repositorio ${repo.fullName} en la rama ${repo.defaultBranch}.`;
+    try {
+      const aiRes = await this.geminiService.chat([{ role: 'user', content: prompt }]);
+      plainExplanation = aiRes.reply.replace(/\*{1,3}/g, '').trim();
+    } catch {}
+
+    return {
+      repoName: repo.fullName,
+      defaultBranch: repo.defaultBranch,
+      commits: recentCommits,
+      pullRequests: recentPrs,
+      explanation: plainExplanation,
+    };
+
+  }
+
   @Get(':id')
+
   async findById(@Param('id') id: string) {
     const project = await this.projectService.findById(id);
     return { project };

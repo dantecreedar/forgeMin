@@ -56,6 +56,9 @@ export default function ProjectDetailPage() {
 
   const hasFetchedReadmeRef = useRef(false);
 
+  const [gitActivity, setGitActivity] = useState<any>(null);
+  const [loadingActivity, setLoadingActivity] = useState(false);
+
   const loadData = async (autoAnalyze = false) => {
     if (!id) return;
     try {
@@ -76,11 +79,19 @@ export default function ProjectDetailPage() {
       if ((repoRes.repositories || []).length > 0 && !hasFetchedReadmeRef.current) {
         hasFetchedReadmeRef.current = true;
         setLoadingReadme(true);
+        setLoadingActivity(true);
+
         api.projects.getReadmeSummary(id)
           .then((res) => setReadmeSummary(res.summary))
           .catch(() => {})
           .finally(() => setLoadingReadme(false));
+
+        api.projects.getGitActivity(id)
+          .then((res) => setGitActivity(res))
+          .catch(() => {})
+          .finally(() => setLoadingActivity(false));
       }
+
 
 
       // Trigger automatic sync & analysis on mount if requested
@@ -391,6 +402,80 @@ export default function ProjectDetailPage() {
             ) : null}
           </div>
         )}
+
+        {/* Live Git Activity Graph & Plain Language Explanation */}
+        {connectedRepos.length > 0 && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center shrink-0">
+                  <FolderGit2 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    Grafo de Cambios Recientes (Commits & Pushes)
+                    <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      En vivo
+                    </span>
+                  </h3>
+                  <p className="text-[10px] text-slate-400">Historial visual de código actualizado en tiempo real</p>
+                </div>
+              </div>
+              {loadingActivity && <span className="text-[10px] font-medium text-purple-600 bg-purple-50 px-2.5 py-1 rounded-full animate-pulse">Obteniendo actividad...</span>}
+            </div>
+
+
+
+            {/* Visual Node Graph Flow */}
+            {gitActivity?.commits && gitActivity.commits.length > 0 ? (
+              <div className="space-y-3 pt-1">
+                <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Flujo Visual de Cambios (Grafo):</p>
+                <div className="relative pl-6 space-y-3 border-l-2 border-slate-200">
+                  {gitActivity.commits.map((commit: any, idx: number) => (
+                    <motion.div
+                      key={commit.sha || idx}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: idx * 0.04 }}
+                      className="relative group"
+                    >
+                      {/* Node Bullet */}
+                      <div className="absolute -left-[31px] top-2 w-3.5 h-3.5 rounded-full bg-purple-600 border-2 border-white shadow-xs group-hover:scale-125 transition-transform" />
+
+                      <div className="bg-slate-50 border border-slate-200/90 rounded-xl p-3 hover:bg-slate-100/70 transition-colors space-y-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-slate-900 truncate flex-1">
+                            {commit.message}
+                          </p>
+                          {commit.url && (
+                            <a
+                              href={commit.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[10px] text-purple-600 font-mono hover:underline shrink-0"
+                            >
+                              #{commit.sha?.substring(0, 7)} <ExternalLink size={10} className="inline" />
+                            </a>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-3 text-[10px] text-slate-400">
+                          <span>Por: <strong className="text-slate-600 font-medium">{commit.authorName}</strong></span>
+                          <span>•</span>
+                          <span>Rama: <strong className="text-purple-700 font-mono">{gitActivity.defaultBranch || 'main'}</strong></span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </div>
+            ) : !loadingActivity ? (
+              <p className="text-xs text-slate-400 italic py-2">
+                Aún no hay commits o pushes registrados en este repositorio.
+              </p>
+            ) : null}
+          </div>
+        )}
+
 
 
         {/* Documents & File Attachments Section */}

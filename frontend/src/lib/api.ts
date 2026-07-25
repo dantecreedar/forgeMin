@@ -57,7 +57,10 @@ export const api = {
       fetch(`${API_BASE}/projects/${id}/analyze`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
     getReadmeSummary: (id: string) =>
       fetch(`${API_BASE}/projects/${id}/readme`, { headers: getHeaders() }).then(handleResponse),
+    getGitActivity: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/git-activity`, { headers: getHeaders() }).then(handleResponse),
   },
+
 
   objectives: {
     listByUser: (userId: string) => fetch(`${API_BASE}/objectives/user/${userId}`, { headers: getHeaders() }).then(handleResponse),
