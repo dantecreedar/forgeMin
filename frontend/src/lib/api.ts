@@ -43,6 +43,8 @@ export const api = {
     get: (id: string) => fetch(`${API_BASE}/workspaces/${id}`, { headers: getHeaders() }).then(handleResponse),
     create: (name: string, ownerId: string, description?: string) =>
       fetch(`${API_BASE}/workspaces`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ name, ownerId, description }) }).then(handleResponse),
+    delete: (id: string) =>
+      fetch(`${API_BASE}/workspaces/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
   projects: {
     list: (workspaceId: string) => fetch(`${API_BASE}/projects/workspace/${workspaceId}`, { headers: getHeaders() }).then(handleResponse),

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Folder, Plus, X, Users, Search, ChevronDown, ChevronRight, ExternalLink, FolderPlus } from 'lucide-react';
+import { Folder, Plus, X, Users, Search, ChevronDown, ChevronRight, ExternalLink, FolderPlus, Trash2, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
@@ -20,8 +20,30 @@ export default function WorkspacesPage() {
   const [projName, setProjName] = useState('');
   const [projDesc, setProjDesc] = useState('');
 
+  const [deletingWsId, setDeletingWsId] = useState<string | null>(null);
+  const [deletingProjId, setDeletingProjId] = useState<string | null>(null);
+
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
+
+  const deleteWorkspace = async (id: string) => {
+    try {
+      await api.workspaces.delete(id);
+      setWorkspaces((prev) => prev.filter((w) => w.id !== id));
+      setDeletingWsId(null);
+    } catch {}
+  };
+
+  const deleteProjectInWs = async (projId: string, wsId: string) => {
+    try {
+      await api.projects.delete(projId);
+      setProjectsMap((prev) => ({
+        ...prev,
+        [wsId]: (prev[wsId] || []).filter((p) => p.id !== projId),
+      }));
+      setDeletingProjId(null);
+    } catch {}
+  };
 
   const loadProjects = async (wsId: string) => {
     try {
@@ -242,6 +264,16 @@ export default function WorkspacesPage() {
                         <FolderPlus size={14} className="text-primary" />
                         Crear Proyecto
                       </motion.button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDeletingWsId(ws.id);
+                        }}
+                        className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
+                        title="Eliminar Workspace"
+                      >
+                        <Trash2 size={16} />
+                      </button>
                       <button onClick={() => toggleExpand(ws.id)} className="text-muted-foreground hover:text-foreground p-1.5 rounded-lg hover:bg-gray-100">
                         {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                       </button>
@@ -315,29 +347,43 @@ export default function WorkspacesPage() {
                         ) : (
                           <div className="p-4 space-y-2">
                             {wsProjects.map((proj: any) => (
-                              <Link
+                              <div
                                 key={proj.id}
-                                href={`/projects/${proj.id}`}
-                                className="block"
+                                className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-xl hover:border-primary/40 hover:shadow-xs transition-all group/proj"
                               >
-                                <div className="flex items-center justify-between px-4 py-3 bg-white border border-gray-200 rounded-xl hover:border-primary/40 hover:shadow-xs transition-all group/proj">
-                                  <div className="flex items-center gap-3">
-                                    <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
-                                      <Folder size={14} className="text-blue-600" />
-                                    </div>
-                                    <div>
-                                      <p className="text-xs font-semibold text-foreground group-hover/proj:text-primary transition-colors">{proj.name}</p>
-                                      {proj.description && (
-                                        <p className="text-[11px] text-muted-foreground truncate">{proj.description}</p>
-                                      )}
-                                    </div>
+                                <Link
+                                  href={`/projects/${proj.id}`}
+                                  className="flex items-center gap-3 flex-1 min-w-0"
+                                >
+                                  <div className="w-8 h-8 bg-blue-50 rounded-lg flex items-center justify-center shrink-0">
+                                    <Folder size={14} className="text-blue-600" />
                                   </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">Ver proyecto</span>
+                                  <div className="min-w-0">
+                                    <p className="text-xs font-semibold text-foreground group-hover/proj:text-primary transition-colors truncate">{proj.name}</p>
+                                    {proj.description && (
+                                      <p className="text-[11px] text-muted-foreground truncate">{proj.description}</p>
+                                    )}
+                                  </div>
+                                </Link>
+                                <div className="flex items-center gap-2">
+                                  <Link
+                                    href={`/projects/${proj.id}`}
+                                    className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium hover:bg-slate-200"
+                                  >
+                                    Ver proyecto
+                                  </Link>
+                                  <button
+                                    onClick={() => setDeletingProjId(proj.id)}
+                                    className="text-slate-300 hover:text-red-600 p-1 transition-colors"
+                                    title="Eliminar proyecto"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                  <Link href={`/projects/${proj.id}`}>
                                     <ExternalLink size={14} className="text-muted-foreground group-hover/proj:text-primary transition-colors" />
-                                  </div>
+                                  </Link>
                                 </div>
-                              </Link>
+                              </div>
                             ))}
                           </div>
                         )}
@@ -350,6 +396,97 @@ export default function WorkspacesPage() {
           </div>
         )}
       </div>
+
+      {/* Confirmation Modal: Delete Workspace */}
+      <AnimatePresence>
+        {deletingWsId && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl max-w-sm w-full space-y-4 text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Eliminar Workspace</h3>
+                  <p className="text-xs text-slate-500">Esta acción no se puede deshacer</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                ¿Estás seguro de que deseas eliminar este espacio de trabajo? Se removerán sus configuraciones y lista de proyectos.
+              </p>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => deleteWorkspace(deletingWsId)}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Eliminar Workspace
+                </button>
+                <button
+                  onClick={() => setDeletingWsId(null)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal: Delete Project from Workspace */}
+      <AnimatePresence>
+        {deletingProjId && (
+          <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl max-w-sm w-full space-y-4 text-left"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center shrink-0">
+                  <AlertCircle size={20} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Eliminar Proyecto</h3>
+                  <p className="text-xs text-slate-500">Esta acción no se puede deshacer</p>
+                </div>
+              </div>
+
+              <p className="text-xs text-slate-600 leading-relaxed">
+                ¿Estás seguro de que deseas eliminar este proyecto y todos sus objetivos y análisis?
+              </p>
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => {
+                    const wsId = Object.keys(projectsMap).find((key) =>
+                      projectsMap[key].some((p) => p.id === deletingProjId)
+                    );
+                    if (wsId) deleteProjectInWs(deletingProjId, wsId);
+                  }}
+                  className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  <Trash2 size={14} /> Eliminar Proyecto
+                </button>
+                <button
+                  onClick={() => setDeletingProjId(null)}
+                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
