@@ -51,7 +51,6 @@ export class WorkspaceApplicationService {
   }
 
   async archive(id: string): Promise<void> {
-    const workspace = await this.findById(id);
-    await this.workspaceRepository.update(workspace.archive());
+    await this.workspaceRepository.delete(id);
   }
 }

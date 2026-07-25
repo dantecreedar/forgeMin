@@ -27,22 +27,26 @@ export default function WorkspacesPage() {
   const [loading, setLoading] = useState(true);
 
   const deleteWorkspace = async (id: string) => {
+    setWorkspaces((prev) => prev.filter((w) => w.id !== id));
+    setDeletingWsId(null);
     try {
       await api.workspaces.delete(id);
-      setWorkspaces((prev) => prev.filter((w) => w.id !== id));
-      setDeletingWsId(null);
-    } catch {}
+    } catch (err) {
+      console.error('Error deleting workspace:', err);
+    }
   };
 
   const deleteProjectInWs = async (projId: string, wsId: string) => {
+    setProjectsMap((prev) => ({
+      ...prev,
+      [wsId]: (prev[wsId] || []).filter((p) => p.id !== projId),
+    }));
+    setDeletingProjId(null);
     try {
       await api.projects.delete(projId);
-      setProjectsMap((prev) => ({
-        ...prev,
-        [wsId]: (prev[wsId] || []).filter((p) => p.id !== projId),
-      }));
-      setDeletingProjId(null);
-    } catch {}
+    } catch (err) {
+      console.error('Error deleting project:', err);
+    }
   };
 
   const loadProjects = async (wsId: string) => {

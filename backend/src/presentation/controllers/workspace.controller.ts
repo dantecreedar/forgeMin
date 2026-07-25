@@ -36,8 +36,8 @@ export class WorkspaceController {
   }
 
   @Delete(':id')
-  @HttpCode(HttpStatus.NO_CONTENT)
   async archive(@Param('id') id: string) {
     await this.workspaceService.archive(id);
+    return { deleted: true };
   }
 }

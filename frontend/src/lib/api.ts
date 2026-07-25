@@ -11,7 +11,9 @@ function getHeaders(): HeadersInit {
 
 
 async function handleResponse(r: Response) {
-  const data = await r.json();
+  if (r.status === 204) return { success: true };
+  const text = await r.text();
+  const data = text ? JSON.parse(text) : {};
   if (!r.ok) {
     throw new Error(data.message || `Error del servidor (${r.status})`);
   }
