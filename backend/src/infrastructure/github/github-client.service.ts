@@ -170,18 +170,31 @@ export class GitHubClientService implements IGitHubClient {
   }
 
   async getReadme(owner: string, repo: string, userToken?: string): Promise<string | null> {
+    const activeToken = userToken || process.env.GITHUB_TOKEN || process.env.GITHUB_API;
+    const octokit = activeToken ? new Octokit({ auth: activeToken }) : this.octokit;
+
+    // Try standard GitHub README API first
     try {
-      const activeToken = userToken || process.env.GITHUB_TOKEN || process.env.GITHUB_API;
-      const octokit = new Octokit({ auth: activeToken });
       const { data } = await octokit.repos.getReadme({ owner, repo });
       if ('content' in data && data.content) {
         return Buffer.from(data.content, 'base64').toString('utf-8');
       }
-      return null;
-    } catch {
-      return null;
+    } catch {}
+
+    // Fallback to checking alternative common filenames
+    const commonNames = ['readme.md', 'README', 'README.markdown', 'README.txt', 'readme.txt', 'Docs/README.md', 'docs/README.md'];
+    for (const path of commonNames) {
+      try {
+        const { data } = await octokit.repos.getContent({ owner, repo, path });
+        if ('content' in data && (data as any).content) {
+          return Buffer.from((data as any).content, 'base64').toString('utf-8');
+        }
+      } catch {}
     }
+
+    return null;
   }
+
 
   private async getDefaultBranch(owner: string, repo: string): Promise<string> {
 

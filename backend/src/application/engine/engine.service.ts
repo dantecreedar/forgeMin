@@ -32,6 +32,7 @@ export class EngineService {
     - 'vincular', 'conectar', 'linkear' -> action: 'connect'
     - 'crea', 'crear', 'nuevo', 'añadir' -> action: 'create'
     - 'tengo', 'mostrar', 'listar', 'ver', 'lista', 'tiene' -> action: 'list'
+    - 'analizar todo', 'resumen global', 'resumen general', 'analiza todo', 'resumen de proyectos' -> action: 'analyze_all', entity: 'project'
 
     Acciones disponibles:
     - create: crear workspace, project u objective
@@ -40,6 +41,8 @@ export class EngineService {
     - list: listar workspaces, projects, objectives o github_repos
     - detail: ver detalle de una entidad
     - delete: eliminar una entidad
+    - analyze_all: analizar la totalidad de los proyectos y devolver un informe ejecutivo global
+
 
     Entidades disponibles:
     - workspace: name, description, ownerId (userId)
@@ -83,7 +86,55 @@ export class EngineService {
     const entity = aliases[parsed.entity] || parsed.entity;
     const { action, data } = parsed;
 
+    if (action === 'analyze_all') {
+      const wss = await this.workspaces.findByUser(userId);
+      const allProjects: any[] = [];
+      for (const ws of wss) {
+        const ps = await this.projects.findByWorkspaceId(ws.id);
+        allProjects.push(...ps);
+      }
+
+      if (allProjects.length === 0) {
+        return { type: 'global_summary', message: 'No se encontraron proyectos para analizar. Crea tu primer proyecto primero.' };
+      }
+
+      const enriched = await Promise.all(
+        allProjects.map(async (p) => {
+          const objs = await this.objectives.findByProjectId(p.id);
+          const repos = await this.repositories.findByProjectId(p.id);
+          return {
+            name: p.name,
+            description: p.description,
+            objectivesCount: objs.length,
+            objectivesProgress: objs.map((o) => ({ title: o.title, status: o.status, progress: o.progress, summary: o.summary })),
+            repositories: repos.map((r) => r.fullName),
+          };
+        })
+      );
+
+      const prompt = `Eres el Director de Tecnología e Inteligencia de ForgeMind. Analiza la totalidad de los proyectos del usuario y genera un Informe Ejecutivo Global consolidado en español:
+
+Estructura requerida:
+1. 📊 ESTADO GENERAL: Diagnóstico del ecosistema (total de proyectos, avance global estimado).
+2. 🚀 RESUMEN POR PROYECTO: Breve balance de cada proyecto (progreso de sus objetivos y repositorios).
+3. 💡 RECOMENDACIONES ESTRATÉGICAS: 2-3 sugerencias concretas de IA para acelerar el desarrollo.
+
+Datos del ecosistema del usuario:
+${JSON.stringify(enriched, null, 2)}`;
+
+      const result = await this.gemini.chat([{ role: 'user', content: prompt }]);
+
+      return {
+        type: 'global_summary',
+        entity: 'project',
+        summary: result.reply,
+        projectsCount: allProjects.length,
+        message: `Análisis global de ${allProjects.length} proyecto${allProjects.length !== 1 ? 's' : ''} completado exitosamente.`
+      };
+    }
+
     if (action === 'list') {
+
       if (entity === 'workspace') {
         const list = await this.workspaces.findByUser(userId);
         return { type: 'list', entity: 'workspace', items: list, message: `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}` };

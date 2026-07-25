@@ -1,6 +1,7 @@
 'use client';
 
-import { Folder, Target, FolderGit2, ExternalLink, GitBranch } from 'lucide-react';
+import { Folder, Target, FolderGit2, ExternalLink, GitBranch, Sparkles } from 'lucide-react';
+
 import Link from 'next/link';
 
 export function renderProjectGraph(project: any, onNavigate?: () => void) {
@@ -204,5 +205,22 @@ export function GraphCard({ payload, onNavigate }: { payload: any; onNavigate?: 
     );
   }
 
+  if (type === 'global_summary') {
+    return (
+      <div className="bg-slate-900 text-white rounded-2xl p-4 shadow-xl border border-slate-800 space-y-3 mt-3 text-left">
+        <div className="flex items-center gap-2 border-b border-slate-800 pb-2.5">
+          <Sparkles size={16} className="text-amber-400" />
+          <h4 className="text-xs font-bold uppercase tracking-wider text-amber-400">
+            Informe Ejecutivo Global (IA)
+          </h4>
+        </div>
+        <div className="text-xs text-slate-300 leading-relaxed space-y-2 whitespace-pre-wrap font-sans">
+          {payload.summary || payload.message}
+        </div>
+      </div>
+    );
+  }
+
   return null;
 }
+

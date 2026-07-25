@@ -47,10 +47,12 @@ export default function DashboardPage() {
   };
 
   const quickPrompts = [
+    { label: '📊 Resumen Global con IA', query: 'analizar todo y dar un resumen global de los proyectos', icon: Sparkles },
     { label: 'Ver Proyectos', query: 'muestrame los proyectos', icon: Folder },
     { label: 'Crear Proyecto', query: 'crea un proyecto llamado App Movil', icon: Sparkles },
     { label: 'Ver Objetivos', query: 'muestrame los objetivos', icon: Target },
   ];
+
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f8fafd]">

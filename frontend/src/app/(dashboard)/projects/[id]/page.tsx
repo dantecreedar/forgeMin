@@ -358,20 +358,26 @@ export default function ProjectDetailPage() {
           )}
         </div>
 
-        {/* AI Executive Summary from README.md */}
+        {/* AI Executive Summary from README.md - Clean White Card */}
         {connectedRepos.length > 0 && (
-          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-sm text-slate-100 space-y-2">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-amber-400">
-                <BookOpen size={18} />
-                <h3 className="text-xs font-bold uppercase tracking-wider">Resumen Ejecutivo de la App (Análisis de README.md)</h3>
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                  <BookOpen size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Resumen Ejecutivo del Proyecto</h3>
+                  <p className="text-[10px] text-slate-400">Análisis ejecutivo inteligente de la aplicación</p>
+
+                </div>
               </div>
-              {loadingReadme && <span className="text-[10px] text-amber-400/80 animate-pulse">Analizando README...</span>}
+              {loadingReadme && <span className="text-[10px] font-medium text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full animate-pulse">Analizando README...</span>}
             </div>
             {readmeSummary ? (
-              <p className="text-xs text-slate-300 leading-relaxed font-sans pt-1 border-t border-slate-800">
+              <div className="text-xs text-slate-700 leading-relaxed font-sans whitespace-pre-wrap pt-1 space-y-1">
                 {readmeSummary}
-              </p>
+              </div>
             ) : !loadingReadme ? (
               <p className="text-xs text-slate-400 italic pt-1">
                 Haz clic en Sincronizar para escanear el README.md del repositorio de GitHub.
@@ -379,6 +385,7 @@ export default function ProjectDetailPage() {
             ) : null}
           </div>
         )}
+
 
         {/* Documents & File Attachments Section */}
         <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
@@ -470,22 +477,22 @@ export default function ProjectDetailPage() {
               </h2>
 
               {/* View Switcher: Cards vs Excel Spreadsheet */}
-              <div className="bg-gray-100 p-1 rounded-xl flex items-center gap-1 border border-gray-200">
+              <div className="bg-slate-100 p-1 rounded-xl flex items-center gap-1 border border-slate-200 shrink-0">
                 <button
                   onClick={() => setViewMode('cards')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
-                    viewMode === 'cards' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all whitespace-nowrap ${
+                    viewMode === 'cards' ? 'bg-white text-slate-900 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <LayoutGrid size={13} /> Tarjetas
                 </button>
                 <button
                   onClick={() => setViewMode('excel')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all whitespace-nowrap ${
                     viewMode === 'excel' ? 'bg-white text-emerald-700 shadow-xs font-semibold' : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
-                  <Table size={13} className="text-emerald-600" /> Excel / Spreadsheet
+                  <Table size={13} className="text-emerald-600" /> Excel Grid
                 </button>
               </div>
             </div>
@@ -493,13 +500,16 @@ export default function ProjectDetailPage() {
             <div className="flex items-center gap-2 flex-wrap">
               {viewMode === 'excel' && (
                 <motion.button
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={exportToExcelCSV}
-                  className="bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm hover:bg-emerald-800"
+                  className="bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5 shadow-xs hover:bg-emerald-800 transition-all whitespace-nowrap"
                 >
                   <Download size={14} /> Exportar Excel (.csv)
                 </motion.button>
               )}
+
 
               <motion.button
                 whileTap={{ scale: 0.98 }}
@@ -621,49 +631,58 @@ export default function ProjectDetailPage() {
             )
           ) : (
             /* VIEW MODE: EXCEL SPREADSHEET GRID */
-            <div className="bg-white border border-slate-300 rounded-2xl shadow-sm overflow-hidden">
+            <motion.div
+              initial={{ opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden"
+            >
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs font-sans">
                   <thead>
-                    <tr className="bg-slate-900 text-white font-semibold border-b border-slate-800">
-                      <th className="p-3 w-12 text-center border-r border-slate-800 font-mono text-[10px]">#</th>
-                      <th className="p-3 border-r border-slate-800 min-w-[200px]">Título del Objetivo</th>
-                      <th className="p-3 border-r border-slate-800 min-w-[220px]">Descripción / Notas</th>
-                      <th className="p-3 border-r border-slate-800 w-32">Estado</th>
-                      <th className="p-3 border-r border-slate-800 w-28">Progreso</th>
-                      <th className="p-3 min-w-[240px]">Resumen de IA (Commits)</th>
-                      <th className="p-3 w-10 text-center"></th>
+                    <tr className="bg-slate-900 text-white font-semibold border-b border-slate-800 text-[11px] uppercase tracking-wider">
+                      <th className="py-3.5 px-3 w-12 text-center border-r border-slate-800 font-mono text-[10px]">#</th>
+                      <th className="py-3.5 px-4 border-r border-slate-800 min-w-[200px]">Título del Objetivo</th>
+                      <th className="py-3.5 px-4 border-r border-slate-800 min-w-[220px]">Descripción / Notas</th>
+                      <th className="py-3.5 px-4 border-r border-slate-800 w-32">Estado</th>
+                      <th className="py-3.5 px-4 border-r border-slate-800 w-32">Progreso</th>
+                      <th className="py-3.5 px-4 border-r border-slate-800 min-w-[240px]">Resumen de IA (Commits)</th>
+                      <th className="py-3.5 px-3 w-12 text-center"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-200">
+                  <tbody className="divide-y divide-slate-100">
                     {objectives.map((obj, index) => {
                       const status = statusConfig[obj.status] || statusConfig.pending;
                       return (
-                        <tr key={obj.id} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="p-3 text-center border-r border-gray-200 text-slate-400 font-mono text-[11px] font-semibold">
+                        <tr key={obj.id} className="hover:bg-blue-50/40 transition-colors">
+                          <td className="p-3 text-center border-r border-slate-100 text-slate-400 font-mono text-[11px] font-semibold">
                             {index + 1}
                           </td>
-                          <td className="p-3 border-r border-gray-200 font-medium text-slate-900">
+                          <td className="p-3.5 border-r border-slate-100 font-semibold text-slate-900">
                             {obj.title}
                           </td>
-                          <td className="p-3 border-r border-gray-200 text-slate-600">
+                          <td className="p-3.5 border-r border-slate-100 text-slate-600">
                             {obj.description || <span className="text-slate-300 italic">Sin descripción</span>}
                           </td>
-                          <td className="p-3 border-r border-gray-200">
-                            <span className={`text-[10px] font-semibold px-2 py-1 rounded-md flex items-center gap-1 w-fit ${status.bg} ${status.color}`}>
+                          <td className="p-3.5 border-r border-slate-100">
+                            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md flex items-center gap-1 w-fit ${status.bg} ${status.color}`}>
                               {status.label}
                             </span>
                           </td>
-                          <td className="p-3 border-r border-gray-200 font-mono font-semibold text-slate-800">
+                          <td className="p-3.5 border-r border-slate-100 font-mono font-semibold text-slate-800">
                             <div className="flex items-center gap-2">
-                              <div className="flex-1 h-1.5 bg-gray-200 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500" style={{ width: `${obj.progress || 0}%` }} />
+                              <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${obj.progress || 0}%` }} />
                               </div>
-                              <span>{obj.progress}%</span>
+                              <span className="text-[11px]">{obj.progress}%</span>
                             </div>
                           </td>
-                          <td className="p-3 text-slate-600 leading-relaxed text-[11px]">
+                          <td className="p-3.5 border-r border-slate-100 text-slate-600 leading-relaxed text-[11px]">
                             {obj.summary || <span className="text-slate-400 italic">Pendiente de sincronizar</span>}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            <button onClick={() => setDeletingObjId(obj.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                              <Trash2 size={14} />
+                            </button>
                           </td>
                         </tr>
                       );
@@ -671,7 +690,8 @@ export default function ProjectDetailPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+            </motion.div>
+
           )}
         </div>
       </div>

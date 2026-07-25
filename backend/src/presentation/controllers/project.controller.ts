@@ -39,24 +39,63 @@ export class ProjectController {
   async getReadmeSummary(@Param('id') id: string) {
     const repos = await this.repositoryService.findByProjectId(id);
     if (repos.length === 0) {
-      return { summary: 'Sin repositorio de GitHub vinculado. Vincula un repositorio para analizar su README.md.' };
+      return { summary: 'Sin repositorio de GitHub vinculado. Vincula un repositorio para analizar su estructura.' };
     }
     const repo = repos[0];
     const readmeContent = await this.githubClient.getReadme(repo.owner, repo.name);
-    if (!readmeContent) {
-      return { summary: `No se encontró un archivo README.md en el repositorio ${repo.fullName}.` };
-    }
-    const prompt = `Analiza este archivo README.md y genera un Resumen Ejecutivo en español del proyecto en 2-3 párrafos claros:
-- ¿De qué trata la aplicación?
-- ¿Cuáles son sus principales funcionalidades?
-- Stack tecnológico o arquitectura clave si se menciona.
+    
+    if (readmeContent) {
+      const prompt = `Analiza la documentación del proyecto y genera un Informe Ejecutivo Directo en español.
 
-README.md:
+REGLAS DE FORMATO ESTRICTAS:
+1. NUNCA menciones las palabras "README", "README.md", "archivo", "plantilla", "boilerplate", ni utilices introducciones como "Aquí tienes un resumen..." o "Este archivo describe...".
+2. Empieza DIRECTAMENTE con el título "📌 Propósito General:" sin ninguna presentación previa.
+3. Describe la aplicación directamente por sus capacidades funcionales y de negocio.
+
+Formato requerido:
+
+📌 Propósito General:
+(Explicación ejecutiva de lo que hace la aplicación)
+
+⚡ Funcionalidades Clave:
+• (Funcionalidad 1)
+• (Funcionalidad 2)
+• (Funcionalidad 3)
+
+🛠️ Stack Tecnológico y Arquitectura:
+• (Tecnología o herramientas)
+
+Documentación técnica:
 ${readmeContent.slice(0, 4000)}`;
 
-    const res = await this.geminiService.chat([{ role: 'user', content: prompt }]);
+      const res = await this.geminiService.chat([{ role: 'user', content: prompt }]);
+      let cleaned = res.reply
+        .replace(/Aquí tienes[\s\S]*?:/gi, '')
+        .replace(/Este archivo README(\.md)? describe/gi, 'La aplicación es')
+        .replace(/Este archivo README(\.md)?/gi, 'Esta aplicación')
+        .replace(/README(\.md)?/gi, 'documentación')
+        .replace(/plantilla de proyecto \(boilerplate\)/gi, 'aplicación')
+        .replace(/boilerplate/gi, 'proyecto')
+        .trim();
+
+      return { summary: cleaned, repoName: repo.fullName };
+    }
+
+
+
+    // Fallback if no README file was found: generate summary from repository metadata
+    const proj = await this.projectService.findById(id);
+    const fallbackPrompt = `Genera un Resumen Ejecutivo de la aplicación en español basado en la información del repositorio y proyecto:
+- Nombre del proyecto/repositorio: ${proj?.name || repo.name} (${repo.fullName})
+- Descripción del proyecto: ${proj?.description || 'Sin descripción provista.'}
+- Rama principal: ${repo.defaultBranch}
+
+Indica brevemente el propósito de la app e invita a agregar un archivo README.md al repositorio para análisis profundo.`;
+
+    const res = await this.geminiService.chat([{ role: 'user', content: fallbackPrompt }]);
     return { summary: res.reply, repoName: repo.fullName };
   }
+
 
 
   @Get(':id')
