@@ -3,6 +3,7 @@ import { ProjectApplicationService } from '../../application/project/project.ser
 import { SyncEngineService } from '../../application/analysis/sync-engine.service';
 import { AIEngineService } from '../../application/analysis/ai-engine.service';
 import { RepositoryApplicationService } from '../../application/repository/repository.service';
+import { ObjectiveApplicationService } from '../../application/objective/objective.service';
 
 import { Inject } from '@nestjs/common';
 import { GITHUB_CLIENT, IGitHubClient } from '../../infrastructure/github/github-client.interface';
@@ -23,6 +24,7 @@ export class ProjectController {
     private readonly syncEngineService: SyncEngineService,
     private readonly aiEngineService: AIEngineService,
     private readonly repositoryService: RepositoryApplicationService,
+    private readonly objectiveService: ObjectiveApplicationService,
     @Inject(GITHUB_CLIENT) private readonly githubClient: IGitHubClient,
     private readonly geminiService: GeminiService,
     private readonly localGitService: LocalGitService,
@@ -213,8 +215,82 @@ ${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.
     return resultActivity;
   }
 
-  @Get(':id')
+  @Get(':id/status-summary')
+  async getStatusSummary(@Param('id') id: string) {
+    const [project, objectives, repos, localStatus] = await Promise.all([
+      this.projectService.findById(id),
+      this.objectiveService.findByProjectId(id).catch(() => []),
+      this.repositoryService.findByProjectId(id).catch(() => []),
+      this.localGitService.getLocalStatus().catch(() => ({ hasUncommittedChanges: false, modifiedFiles: [], currentBranch: 'main' })),
+    ]);
 
+    const total = objectives.length;
+    const completed = objectives.filter((o) => o.status === 'completed').length;
+    const inProgress = objectives.filter((o) => o.status === 'in_progress').length;
+    const blocked = objectives.filter((o) => o.status === 'blocked').length;
+    const pending = objectives.filter((o) => o.status === 'pending').length;
+
+    const overallProgress = total > 0
+      ? Math.round(objectives.reduce((sum, o) => sum + (o.progress || 0), 0) / total)
+      : 0;
+
+    let healthStatus: 'healthy' | 'at_risk' | 'critical' = 'healthy';
+    let healthLabel = total > 0 ? 'Saludable y en tiempo' : 'Sin objetivos manuales (Evaluado por avances de commits)';
+    let healthColor = 'emerald';
+
+    if (blocked > 0) {
+      healthStatus = 'critical';
+      healthLabel = `Atención requerida: ${blocked} objetivo(s) bloqueado(s)`;
+      healthColor = 'red';
+    } else if (pending > inProgress && total > 2 && overallProgress < 40) {
+      healthStatus = 'at_risk';
+      healthLabel = 'En riesgo: progreso moderado con tareas pendientes';
+      healthColor = 'amber';
+    }
+
+    const phases = [
+      {
+        id: 'planning',
+        name: 'Fase 1: Planeación',
+        status: total > 0 ? 'completed' : 'in_progress',
+        label: total > 0 ? 'Completado' : 'En Curso',
+      },
+      {
+        id: 'development',
+        name: 'Fase 2: Desarrollo Activo',
+        status: inProgress > 0 || completed > 0 || localStatus.hasUncommittedChanges ? 'in_progress' : 'pending',
+        label: inProgress > 0 || completed > 0 || localStatus.hasUncommittedChanges ? 'En Curso' : 'Pendiente',
+      },
+      {
+        id: 'qa',
+        name: 'Fase 3: Pruebas & QA',
+        status: completed > 0 && overallProgress >= 50 ? 'in_progress' : 'pending',
+        label: completed > 0 && overallProgress >= 50 ? 'En Verificación' : 'Pendiente',
+      },
+      {
+        id: 'production',
+        name: 'Fase 4: Despliegue Producción',
+        status: completed === total && total > 0 ? 'completed' : 'pending',
+        label: completed === total && total > 0 ? 'Completado' : 'Pendiente',
+      },
+    ];
+
+    return {
+      projectId: id,
+      projectName: project?.name || '',
+      overallProgress,
+      healthStatus,
+      healthLabel,
+      healthColor,
+      stats: { total, completed, inProgress, blocked, pending },
+      phases,
+      connectedReposCount: repos.length,
+      hasUncommittedChanges: localStatus.hasUncommittedChanges,
+      updatedAt: new Date(),
+    };
+  }
+
+  @Get(':id')
   async findById(@Param('id') id: string) {
     const project = await this.projectService.findById(id);
     return { project };

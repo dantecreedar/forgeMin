@@ -59,6 +59,8 @@ export const api = {
       fetch(`${API_BASE}/projects/${id}/readme`, { headers: getHeaders() }).then(handleResponse),
     getGitActivity: (id: string) =>
       fetch(`${API_BASE}/projects/${id}/git-activity`, { headers: getHeaders() }).then(handleResponse),
+    getStatusSummary: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/status-summary`, { headers: getHeaders() }).then(handleResponse),
   },
 
 

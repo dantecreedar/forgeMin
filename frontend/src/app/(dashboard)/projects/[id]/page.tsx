@@ -58,6 +58,7 @@ export default function ProjectDetailPage() {
 
   const [gitActivity, setGitActivity] = useState<any>(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [statusSummary, setStatusSummary] = useState<any>(null);
 
   const loadData = async (autoAnalyze = false) => {
     if (!id) return;
@@ -75,21 +76,24 @@ export default function ProjectDetailPage() {
       setEditName(projRes.project?.name || '');
       setEditDesc(projRes.project?.description || '');
 
-      // Load AI Summary ONLY ONCE if connected to GitHub
+      // Load Status Summary & Git Activity
+      api.projects.getStatusSummary(id)
+        .then((res) => setStatusSummary(res))
+        .catch(() => {});
+
+      api.projects.getGitActivity(id)
+        .then((res) => setGitActivity(res))
+        .catch(() => {})
+        .finally(() => setLoadingActivity(false));
+
+      // Load Readme Summary ONCE if repo connected
       if ((repoRes.repositories || []).length > 0 && !hasFetchedReadmeRef.current) {
         hasFetchedReadmeRef.current = true;
         setLoadingReadme(true);
-        setLoadingActivity(true);
-
         api.projects.getReadmeSummary(id)
           .then((res) => setReadmeSummary(res.summary))
           .catch(() => {})
           .finally(() => setLoadingReadme(false));
-
-        api.projects.getGitActivity(id)
-          .then((res) => setGitActivity(res))
-          .catch(() => {})
-          .finally(() => setLoadingActivity(false));
       }
 
 
@@ -201,24 +205,38 @@ export default function ProjectDetailPage() {
     } catch {}
   };
 
-  // Export Objectives Table to Excel / CSV format
+  // Export Objectives Table / Commit Updates to Excel CSV format
   const exportToExcelCSV = () => {
-    if (objectives.length === 0) return;
-    const headers = ['ID', 'Titulo', 'Descripcion', 'Estado', 'Progreso (%)', 'Resumen IA'];
-    const rows = objectives.map((o) => [
-      `"${o.id}"`,
-      `"${o.title.replace(/"/g, '""')}"`,
-      `"${(o.description || '').replace(/"/g, '""')}"`,
-      `"${o.status}"`,
-      `"${o.progress}%"`,
-      `"${(o.summary || '').replace(/"/g, '""')}"`,
-    ]);
+    const headers = ['ID / Hash', 'Titulo / Actualizacion', 'Descripcion / Detalle', 'Estado', 'Progreso (%)', 'Resumen IA'];
+    let rows: string[][] = [];
+
+    if (objectives.length > 0) {
+      rows = objectives.map((o) => [
+        `"${o.id}"`,
+        `"${o.title.replace(/"/g, '""')}"`,
+        `"${(o.description || '').replace(/"/g, '""')}"`,
+        `"${o.status}"`,
+        `"${o.progress}%"`,
+        `"${(o.summary || '').replace(/"/g, '""')}"`,
+      ]);
+    } else if (gitActivity?.commits && gitActivity.commits.length > 0) {
+      rows = gitActivity.commits.map((c: any) => [
+        `"${c.sha?.substring(0, 7) || 'local'}"`,
+        `"${c.message.replace(/"/g, '""')}"`,
+        `"Actualización por ${c.authorName}"`,
+        `"Cumplido"`,
+        `"100%"`,
+        `"${(gitActivity.explanation || '').replace(/"/g, '""')}"`,
+      ]);
+    }
+
+    if (rows.length === 0) return;
 
     const csvContent = 'data:text/csv;charset=utf-8,\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `objetivos_proyecto_${project.name.toLowerCase().replace(/\s+/g, '_')}.csv`);
+    link.setAttribute('download', `actualizaciones_proyecto_${project.name.toLowerCase().replace(/\s+/g, '_')}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -373,6 +391,128 @@ export default function ProjectDetailPage() {
             </div>
           )}
         </div>
+
+        {/* Sección: Estado del Proyecto (Salud, KPIs y Flujo de Etapas) */}
+        {statusSummary && (
+          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5 text-left">
+            {/* Header & Health Badge */}
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center shrink-0">
+                  <Target size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Estado del Proyecto</h3>
+                  <p className="text-[10px] text-slate-400">Evaluación consolidada de avance y salud de desarrollo</p>
+                </div>
+              </div>
+
+              <span className={`text-xs font-semibold px-3 py-1 rounded-full border flex items-center gap-1.5 ${
+                statusSummary.healthStatus === 'critical'
+                  ? 'bg-red-50 text-red-700 border-red-200'
+                  : statusSummary.healthStatus === 'at_risk'
+                  ? 'bg-amber-50 text-amber-700 border-amber-200'
+                  : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${
+                  statusSummary.healthStatus === 'critical' ? 'bg-red-500 animate-ping' : statusSummary.healthStatus === 'at_risk' ? 'bg-amber-500' : 'bg-emerald-500'
+                }`} />
+                {statusSummary.healthLabel}
+              </span>
+            </div>
+
+            {/* KPI Cards Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* KPI 1: Overall Progress */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Progreso Consolidado</span>
+                <div className="flex items-baseline justify-between">
+                  <span className="text-2xl font-black text-slate-900 font-mono">{statusSummary.overallProgress}%</span>
+                  <span className="text-[10px] font-semibold text-slate-500">De objetivos globales</span>
+                </div>
+                <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                  <div className="h-full bg-emerald-500 rounded-full transition-all duration-500" style={{ width: `${statusSummary.overallProgress}%` }} />
+                </div>
+              </div>
+
+              {/* KPI 2: Objectives Summary */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Objetivos & Metas</span>
+                {statusSummary.stats?.total === 0 ? (
+                  <>
+                    <p className="text-xs font-bold text-amber-800">Sin objetivos manuales</p>
+                    <p className="text-[10px] text-slate-500 leading-tight pt-0.5">
+                      Evaluado por actualizaciones de commits.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-sm font-bold text-slate-900">
+                      {statusSummary.stats?.completed || 0} / {statusSummary.stats?.total || 0} Completados
+                    </p>
+                    <div className="flex items-center gap-2 text-[10px] text-slate-500 pt-1">
+                      <span className="text-blue-600 font-medium">{statusSummary.stats?.inProgress || 0} en curso</span>
+                      <span>•</span>
+                      <span className="text-red-500 font-medium">{statusSummary.stats?.blocked || 0} bloqueados</span>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* KPI 3: Code & Development State */}
+              <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-3.5 space-y-1.5">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Control de Código</span>
+                <p className="text-sm font-bold text-slate-900 truncate">
+                  {statusSummary.hasUncommittedChanges ? 'Modificaciones en Local' : 'Git Sincronizado'}
+                </p>
+                <p className="text-[10px] text-slate-500">
+                  {statusSummary.connectedReposCount > 0 ? `${statusSummary.connectedReposCount} repositorio(s) vinculados` : 'Entorno local activo'}
+                </p>
+              </div>
+            </div>
+
+            {/* Visual Lifecycle Pipeline Flow (Flujo de Etapas) */}
+            <div className="space-y-3 pt-2 border-t border-slate-100">
+              <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
+                Flujo de Etapas del Proyecto (Pipeline):
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2 relative">
+                {statusSummary.phases?.map((phase: any, idx: number) => {
+                  const isCompleted = phase.status === 'completed';
+                  const isInProgress = phase.status === 'in_progress';
+
+                  return (
+                    <div
+                      key={phase.id || idx}
+                      className={`relative border rounded-xl p-3 text-left transition-all ${
+                        isCompleted
+                          ? 'bg-emerald-50/60 border-emerald-200 text-emerald-950'
+                          : isInProgress
+                          ? 'bg-blue-50/80 border-blue-300 ring-2 ring-blue-100 text-blue-950'
+                          : 'bg-slate-50 border-slate-200 text-slate-400'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-1 mb-1">
+                        <span className="text-[10px] font-mono font-bold uppercase opacity-80">Paso {idx + 1}</span>
+                        <span className={`text-[9px] font-semibold px-2 py-0.5 rounded-full ${
+                          isCompleted
+                            ? 'bg-emerald-200/70 text-emerald-800'
+                            : isInProgress
+                            ? 'bg-blue-200 text-blue-800 font-bold animate-pulse'
+                            : 'bg-slate-200 text-slate-600'
+                        }`}>
+                          {phase.label}
+                        </span>
+                      </div>
+                      <h5 className="text-xs font-bold truncate">{phase.name}</h5>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* AI Executive Summary from README.md - Clean White Card */}
         {connectedRepos.length > 0 && (
@@ -864,43 +1004,88 @@ export default function ProjectDetailPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {objectives.map((obj, index) => {
-                      const status = statusConfig[obj.status] || statusConfig.pending;
-                      return (
-                        <tr key={obj.id} className="hover:bg-blue-50/40 transition-colors">
+                    {objectives.length > 0 ? (
+                      objectives.map((obj, index) => {
+                        const status = statusConfig[obj.status] || statusConfig.pending;
+                        return (
+                          <tr key={obj.id} className="hover:bg-blue-50/40 transition-colors">
+                            <td className="p-3 text-center border-r border-slate-100 text-slate-400 font-mono text-[11px] font-semibold">
+                              {index + 1}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 font-semibold text-slate-900">
+                              {obj.title}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 text-slate-600">
+                              {obj.description || <span className="text-slate-300 italic">Sin descripción</span>}
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100">
+                              <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md flex items-center gap-1 w-fit ${status.bg} ${status.color}`}>
+                                {status.label}
+                              </span>
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 font-mono font-semibold text-slate-800">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                                  <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${obj.progress || 0}%` }} />
+                                </div>
+                                <span className="text-[11px]">{obj.progress}%</span>
+                              </div>
+                            </td>
+                            <td className="p-3.5 border-r border-slate-100 text-slate-600 leading-relaxed text-[11px]">
+                              {obj.summary || <span className="text-slate-400 italic">Sincronizado con commits</span>}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <button onClick={() => setDeletingObjId(obj.id)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <Trash2 size={14} />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : gitActivity?.commits && gitActivity.commits.length > 0 ? (
+                      gitActivity.commits.map((commit: any, index: number) => (
+                        <tr key={commit.sha || index} className="hover:bg-purple-50/40 transition-colors">
                           <td className="p-3 text-center border-r border-slate-100 text-slate-400 font-mono text-[11px] font-semibold">
                             {index + 1}
                           </td>
                           <td className="p-3.5 border-r border-slate-100 font-semibold text-slate-900">
-                            {obj.title}
+                            {commit.message}
                           </td>
-                          <td className="p-3.5 border-r border-slate-100 text-slate-600">
-                            {obj.description || <span className="text-slate-300 italic">Sin descripción</span>}
+                          <td className="p-3.5 border-r border-slate-100 text-slate-600 font-mono text-[11px]">
+                            Por: {commit.authorName} ({commit.sha?.substring(0, 7) || 'local'})
                           </td>
                           <td className="p-3.5 border-r border-slate-100">
-                            <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-md flex items-center gap-1 w-fit ${status.bg} ${status.color}`}>
-                              {status.label}
+                            <span className="text-[10px] font-semibold px-2.5 py-1 rounded-md bg-emerald-100 text-emerald-800 inline-flex items-center gap-1">
+                              <CheckCircle size={10} /> Cumplido
                             </span>
                           </td>
                           <td className="p-3.5 border-r border-slate-100 font-mono font-semibold text-slate-800">
                             <div className="flex items-center gap-2">
                               <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${obj.progress || 0}%` }} />
+                                <div className="h-full bg-emerald-500 rounded-full" style={{ width: '100%' }} />
                               </div>
-                              <span className="text-[11px]">{obj.progress}%</span>
+                              <span className="text-[11px]">100%</span>
                             </div>
                           </td>
-                          <td className="p-3.5 border-r border-slate-100 text-slate-600 leading-relaxed text-[11px]">
-                            {obj.summary || <span className="text-slate-400 italic">Pendiente de sincronizar</span>}
+                          <td className="p-3.5 border-r border-slate-100 text-slate-700 leading-relaxed text-[11px]">
+                            {gitActivity.explanation || 'Actualización de código registrada'}
                           </td>
                           <td className="p-3.5 text-center">
-                            <button onClick={() => setDeletingObjId(obj.id)} className="text-slate-400 hover:text-red-500 transition-colors">
-                              <Trash2 size={14} />
-                            </button>
+                            {commit.url && (
+                              <a href={commit.url} target="_blank" rel="noopener noreferrer" className="text-purple-600 hover:text-purple-900">
+                                <ExternalLink size={13} />
+                              </a>
+                            )}
                           </td>
                         </tr>
-                      );
-                    })}
+                      ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="p-6 text-center text-slate-400 italic">
+                          No hay objetivos manuales ni publicaciones de commits registradas.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
