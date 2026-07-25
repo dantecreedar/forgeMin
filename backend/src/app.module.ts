@@ -65,6 +65,9 @@ import { DocumentController } from './presentation/controllers/document.controll
 import { DOCUMENT_REPOSITORY } from './domain/document/document.repository.interface';
 import { FirestoreDocumentRepository } from './infrastructure/persistence/firestore-document.repository';
 
+import { GmailService } from './infrastructure/gmail/gmail.service';
+import { GmailController } from './presentation/controllers/gmail.controller';
+
 const firestoreProviders = [
   { provide: AUTH_REPOSITORY, useClass: FirestoreAuthRepository },
   { provide: WORKSPACE_REPOSITORY, useClass: FirestoreWorkspaceRepository },
@@ -95,6 +98,7 @@ const firestoreProviders = [
     ChatController,
     EngineController,
     DocumentController,
+    GmailController,
   ],
   providers: [
     AuthApplicationService,
@@ -117,6 +121,7 @@ const firestoreProviders = [
     EngineService,
     GeminiService,
     LocalGitService,
+    GmailService,
     { provide: GITHUB_CLIENT, useClass: GitHubClientService },
     { provide: AUTH_SERVICE, useClass: FirebaseAuthService },
     ...firestoreProviders,

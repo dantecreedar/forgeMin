@@ -76,6 +76,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (credential?.accessToken) {
       localStorage.setItem('github_token', credential.accessToken);
     }
+
+    // Vinculación automática con Gmail al iniciar sesión con GitHub si no está vinculado aún
+    const hasGmailToken = typeof window !== 'undefined' ? localStorage.getItem('gmail_access_token') : null;
+    if (!hasGmailToken) {
+      try {
+        const res = await api.gmail.getAuthUrl();
+        if (res.url) {
+          window.location.href = res.url;
+        }
+      } catch {}
+    }
   };
 
   const logout = async () => {

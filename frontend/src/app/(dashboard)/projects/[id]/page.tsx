@@ -8,7 +8,7 @@ import { api } from '@/lib/api';
 import { 
   ArrowLeft, Edit3, Trash2, Plus, X, CheckCircle, Clock, AlertCircle, Target, 
   Sparkles, FolderGit2, RefreshCw, Link as LinkIcon, Table, LayoutGrid, Download, 
-  FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink
+  FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink, Mail, Send
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -59,6 +59,98 @@ export default function ProjectDetailPage() {
   const [gitActivity, setGitActivity] = useState<any>(null);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [statusSummary, setStatusSummary] = useState<any>(null);
+
+  // Gmail OAuth & Email Sending state
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
+  const [gmailToken, setGmailToken] = useState<string | null>(null);
+
+  const [showEmailModal, setShowEmailModal] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailContent, setEmailContent] = useState('');
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
+  const [emailErrorMsg, setEmailErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Check saved Gmail token or URL params from Google OAuth redirect
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlToken = urlParams.get('access_token');
+      const urlEmail = urlParams.get('email');
+
+      if (urlToken && urlEmail) {
+        localStorage.setItem('gmail_access_token', urlToken);
+        localStorage.setItem('gmail_email', urlEmail);
+        setGmailConnected(true);
+        setGmailToken(urlToken);
+        setGmailEmail(urlEmail);
+      } else {
+        const token = localStorage.getItem('gmail_access_token');
+        const email = localStorage.getItem('gmail_email');
+        if (token && email) {
+          setGmailConnected(true);
+          setGmailToken(token);
+          setGmailEmail(email);
+        }
+      }
+    }
+  }, []);
+
+  const connectGmail = async () => {
+    try {
+      const res = await api.gmail.getAuthUrl();
+      if (res.url) {
+        window.location.href = res.url;
+      }
+    } catch (err: any) {
+      alert('Error al iniciar vinculación con Google: ' + (err.message || 'Verifica GOOGLE_CLIENT_ID en backend/.env'));
+    }
+  };
+
+  const openSendEmailModal = () => {
+    setEmailSubject(`Reporte de Avances: ${project?.name || 'Proyecto'}`);
+    const summaryText = gitActivity?.explanation || 'El proyecto se encuentra actualizado y en desarrollo activo.';
+    setEmailContent(`Reporte Ejecutivo para ${project?.name || 'el proyecto'}:\n\n${summaryText}\n\n- Progreso Consolidado: ${statusSummary?.overallProgress || 0}%\n- Estado de Salud: ${statusSummary?.healthLabel || 'Saludable'}`);
+    setEmailSuccessMsg(null);
+    setEmailErrorMsg(null);
+    setShowEmailModal(true);
+  };
+
+  const handleSendReportEmail = async () => {
+    if (!emailTo.trim()) {
+      setEmailErrorMsg('Por favor ingresa un correo destinatario.');
+      return;
+    }
+    if (!gmailToken) {
+      setEmailErrorMsg('Debes vincular tu cuenta de Gmail primero.');
+      return;
+    }
+
+    setSendingEmail(true);
+    setEmailErrorMsg(null);
+    setEmailSuccessMsg(null);
+
+    try {
+      const res = await api.gmail.sendReport({
+        accessToken: gmailToken,
+        to: emailTo.trim(),
+        subject: emailSubject.trim() || `Reporte: ${project?.name}`,
+        content: emailContent,
+        projectName: project?.name,
+      });
+
+      if (res.success) {
+        setEmailSuccessMsg('¡Correo enviado exitosamente mediante Gmail API!');
+        setTimeout(() => setShowEmailModal(false), 2000);
+      }
+    } catch (err: any) {
+      setEmailErrorMsg(err.message || 'Error al despachar el correo.');
+    } finally {
+      setSendingEmail(false);
+    }
+  };
 
   const loadData = async (autoAnalyze = false) => {
     if (!id) return;
@@ -367,6 +459,15 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
+                  <button
+                    onClick={openSendEmailModal}
+                    className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 px-3 py-1.5 rounded-xl font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs"
+                    title="Enviar reporte personalizado por correo"
+                  >
+                    <Mail size={13} className="text-red-600" />
+                    <span>Enviar Reporte por Email</span>
+                  </button>
+
                   {connectedRepos.length > 0 && (
                     <a
                       href={`https://github.com/${connectedRepos[0].fullName || `${connectedRepos[0].owner}/${connectedRepos[0].name}`}`}
@@ -1242,6 +1343,123 @@ export default function ProjectDetailPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal: Enviar Reporte por Email (Gmail API) */}
+      <AnimatePresence>
+          {showEmailModal && (
+            <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xl max-w-lg w-full space-y-4 text-left"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-red-50 text-red-600 rounded-xl flex items-center justify-center">
+                      <Mail size={18} />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-900">Enviar Reporte por Correo (Gmail API)</h3>
+                      <p className="text-[11px] text-slate-500">Despacha el resumen de avances a clientes o miembros del equipo</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowEmailModal(false)} className="text-slate-400 hover:text-slate-700">
+                    <X size={16} />
+                  </button>
+                </div>
+
+                {emailSuccessMsg && (
+                  <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs p-3 rounded-xl flex items-center gap-2">
+                    <CheckCircle size={14} className="text-emerald-600 shrink-0" />
+                    <span>{emailSuccessMsg}</span>
+                  </div>
+                )}
+
+                {emailErrorMsg && (
+                  <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded-xl flex items-center gap-2">
+                    <AlertCircle size={14} className="text-red-600 shrink-0" />
+                    <span>{emailErrorMsg}</span>
+                  </div>
+                )}
+
+                {!gmailConnected && (
+                  <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs p-3 rounded-xl space-y-2">
+                    <p className="font-semibold">Cuenta de Gmail no vinculada</p>
+                    <p className="text-[11px]">Vincula tu cuenta de Google para enviar correos autorizados directamente desde la plataforma.</p>
+                    <button
+                      onClick={connectGmail}
+                      className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-700 transition-colors inline-flex items-center gap-1.5"
+                    >
+                      <Mail size={13} /> Vincular Gmail Ahora
+                    </button>
+                  </div>
+                )}
+
+                <div className="space-y-3 pt-1">
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Destinatario (Email):
+                    </label>
+                    <input
+                      type="email"
+                      value={emailTo}
+                      onChange={(e) => setEmailTo(e.target.value)}
+                      placeholder="ejemplo@cliente.com, equipo@empresa.com"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Asunto:
+                    </label>
+                    <input
+                      type="text"
+                      value={emailSubject}
+                      onChange={(e) => setEmailSubject(e.target.value)}
+                      placeholder="Asunto del correo..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
+                      Contenido del Mensaje / Reporte:
+                    </label>
+                    <textarea
+                      rows={5}
+                      value={emailContent}
+                      onChange={(e) => setEmailContent(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl p-3 text-xs outline-none focus:ring-2 focus:ring-red-500/20 font-sans"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => setShowEmailModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={handleSendReportEmail}
+                    disabled={sendingEmail || !gmailConnected}
+                    className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-colors"
+                  >
+                    {sendingEmail ? (
+                      <RefreshCw size={14} className="animate-spin" />
+                    ) : (
+                      <Send size={14} />
+                    )}
+                    {sendingEmail ? 'Enviando...' : 'Enviar Correo por Gmail'}
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
     </div>
   );
 }

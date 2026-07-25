@@ -19,6 +19,19 @@ export default function DashboardPage() {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const access_token = urlParams.get('access_token');
+      const email = urlParams.get('email');
+      if (access_token && email) {
+        localStorage.setItem('gmail_access_token', access_token);
+        localStorage.setItem('gmail_email', email);
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 

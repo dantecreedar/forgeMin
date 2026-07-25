@@ -103,6 +103,15 @@ export const api = {
     delete: (id: string) =>
       fetch(`${API_BASE}/documents/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
+  gmail: {
+    getAuthUrl: () => fetch(`${API_BASE}/gmail/auth-url`, { headers: getHeaders() }).then(handleResponse),
+    sendReport: (payload: { accessToken: string; to: string; subject: string; content: string; projectName?: string }) =>
+      fetch(`${API_BASE}/gmail/send-report`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(payload),
+      }).then(handleResponse),
+  },
 };
 
 
