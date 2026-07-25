@@ -8,11 +8,12 @@ import { useAuth } from '@/lib/auth-context';
 import { LogOut, LayoutDashboard, Folder, Target, FolderGit2, ChevronLeft, ChevronRight, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/dashboard', label: 'Intelligence', icon: LayoutDashboard },
   { href: '/workspaces', label: 'Workspaces', icon: Folder },
-  { href: '/objectives', label: 'Objectives', icon: Target },
   { href: '/repositories', label: 'Repositories', icon: FolderGit2 },
 ];
+
+
 
 export function Sidebar() {
   const pathname = usePathname();
