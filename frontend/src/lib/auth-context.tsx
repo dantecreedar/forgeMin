@@ -19,6 +19,8 @@ interface AuthContextType {
   loginWithGithub: () => Promise<void>;
   logout: () => Promise<void>;
   token: string | null;
+  authProvider: 'google' | 'github' | null;
+  isDevMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -28,19 +30,38 @@ const AuthContext = createContext<AuthContextType>({
   loginWithGithub: async () => {},
   logout: async () => {},
   token: null,
+  authProvider: null,
+  isDevMode: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
+  const [authProvider, setAuthProvider] = useState<'google' | 'github' | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedProvider = localStorage.getItem('auth_provider') as 'google' | 'github' | null;
+      if (savedProvider) setAuthProvider(savedProvider);
+    }
+
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
       if (fbUser) {
         const t = await fbUser.getIdToken();
         localStorage.setItem('auth_token', t);
         setToken(t);
+
+        // Detect provider from Firebase providerData if not set
+        const providerId = fbUser.providerData?.[0]?.providerId;
+        if (providerId === 'github.com') {
+          setAuthProvider('github');
+          localStorage.setItem('auth_provider', 'github');
+        } else if (providerId === 'google.com') {
+          setAuthProvider('google');
+          localStorage.setItem('auth_provider', 'google');
+        }
+
         try {
           const res = await api.auth.login(t);
           setUser(res.user || null);
@@ -55,8 +76,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else {
         localStorage.removeItem('auth_token');
         localStorage.removeItem('github_token');
+        localStorage.removeItem('auth_provider');
         setToken(null);
         setUser(null);
+        setAuthProvider(null);
       }
       setLoading(false);
     });
@@ -65,27 +88,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
+    localStorage.setItem('auth_provider', 'google');
+    setAuthProvider('google');
     await signInWithPopup(auth, provider);
   };
 
   const loginWithGithub = async () => {
     const provider = new GithubAuthProvider();
     provider.addScope('repo');
+    localStorage.setItem('auth_provider', 'github');
+    setAuthProvider('github');
     const result = await signInWithPopup(auth, provider);
     const credential = GithubAuthProvider.credentialFromResult(result);
     if (credential?.accessToken) {
       localStorage.setItem('github_token', credential.accessToken);
-    }
-
-    // Vinculación automática con Gmail al iniciar sesión con GitHub si no está vinculado aún
-    const hasGmailToken = typeof window !== 'undefined' ? localStorage.getItem('gmail_access_token') : null;
-    if (!hasGmailToken) {
-      try {
-        const res = await api.gmail.getAuthUrl();
-        if (res.url) {
-          window.location.href = res.url;
-        }
-      } catch {}
     }
   };
 
@@ -93,12 +109,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(auth);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('github_token');
+    localStorage.removeItem('auth_provider');
     setUser(null);
     setToken(null);
+    setAuthProvider(null);
   };
 
+  const isDevMode = authProvider === 'github';
+
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithGithub, logout, token }}>
+    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithGithub, logout, token, authProvider, isDevMode }}>
       {children}
     </AuthContext.Provider>
   );

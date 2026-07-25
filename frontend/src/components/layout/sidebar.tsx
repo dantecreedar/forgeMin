@@ -13,14 +13,19 @@ import { DeerIcon } from '../ui/deer-icon';
 const navItems = [
   { href: '/dashboard', label: 'Intelligence', icon: LayoutDashboard },
   { href: '/workspaces', label: 'Workspaces', icon: Folder },
-  { href: '/repositories', label: 'Repositories', icon: FolderGit2 },
+  { href: '/repositories', label: 'Repositories', icon: FolderGit2, requiresDev: true },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
-  const { user, logout } = useAuth();
+  const { user, logout, isDevMode } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+
+  const filteredNavItems = navItems.filter((item) => {
+    if (item.requiresDev && !isDevMode) return false;
+    return true;
+  });
 
   useEffect(() => {
     const saved = localStorage.getItem('sidebar_collapsed');
@@ -67,7 +72,7 @@ export function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 px-2.5 py-4 space-y-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const active = pathname.startsWith(item.href);
             const Icon = item.icon;
             return (
