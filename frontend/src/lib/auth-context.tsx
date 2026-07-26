@@ -2,11 +2,11 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { auth } from '@/lib/firebase';
-import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import { api } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DeerIcon } from '@/components/ui/deer-icon';
-import { Code2, ShieldCheck } from 'lucide-react';
+import { Code2, ShieldCheck, CheckCircle2, RefreshCw, Key, HardDrive, Mail, Users, Sparkles } from 'lucide-react';
 
 interface AuthUser {
   id: string;
@@ -45,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authProvider, setAuthProvider] = useState<'google' | 'github' | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSwitching, setIsSwitching] = useState(false);
+  const [onboardingStep, setOnboardingStep] = useState<number>(0);
   const [targetMode, setTargetMode] = useState<'google' | 'github' | null>(null);
 
   useEffect(() => {
@@ -59,7 +60,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('auth_token', t);
         setToken(t);
 
-        // Detect provider from Firebase providerData if not set
         const providerId = fbUser.providerData?.[0]?.providerId;
         if (providerId === 'github.com') {
           setAuthProvider('github');
@@ -67,6 +67,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (providerId === 'google.com') {
           setAuthProvider('google');
           localStorage.setItem('auth_provider', 'google');
+        }
+
+        if (fbUser.email) {
+          localStorage.setItem('gmail_email', fbUser.email);
         }
 
         try {
@@ -81,31 +85,57 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           });
         }
       } else {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('github_token');
-        localStorage.removeItem('auth_provider');
-        setToken(null);
-        setUser(null);
-        setAuthProvider(null);
+        // Do NOT wipe tokens on temporary offline states unless explicit logout
+        const storedToken = localStorage.getItem('auth_token');
+        if (!storedToken) {
+          setToken(null);
+          setUser(null);
+          setAuthProvider(null);
+        }
       }
       setLoading(false);
     });
     return () => unsub();
   }, []);
 
+  const runOnboardingSequence = async (providerName: 'google' | 'github') => {
+    setIsSwitching(true);
+    setTargetMode(providerName);
+    setOnboardingStep(1); // Autenticando
+
+    await new Promise((r) => setTimeout(r, 600));
+    setOnboardingStep(2); // Sincronizando permisos
+
+    await new Promise((r) => setTimeout(r, 800));
+    setOnboardingStep(3); // Inicializando motor IA
+
+    await new Promise((r) => setTimeout(r, 600));
+    setIsSwitching(false);
+    setOnboardingStep(0);
+  };
+
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
+    // All-in-one unified scopes
     provider.addScope('https://www.googleapis.com/auth/drive.readonly');
     provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
     provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
     provider.addScope('https://www.googleapis.com/auth/gmail.send');
+
     localStorage.setItem('auth_provider', 'google');
     setAuthProvider('google');
+
     const result = await signInWithPopup(auth, provider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
     if (credential?.accessToken) {
       localStorage.setItem('google_token', credential.accessToken);
+      localStorage.setItem('gmail_access_token', credential.accessToken);
     }
+    if (result.user.email) {
+      localStorage.setItem('gmail_email', result.user.email);
+    }
+
+    await runOnboardingSequence('google');
   };
 
   const loginWithGithub = async () => {
@@ -118,6 +148,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (credential?.accessToken) {
       localStorage.setItem('github_token', credential.accessToken);
     }
+
+    await runOnboardingSequence('github');
   };
 
   const logout = async () => {
@@ -125,6 +157,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('github_token');
     localStorage.removeItem('google_token');
+    localStorage.removeItem('gmail_access_token');
+    localStorage.removeItem('gmail_email');
     localStorage.removeItem('auth_provider');
     setUser(null);
     setToken(null);
@@ -133,17 +167,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const switchAuthMode = async (targetProvider: 'google' | 'github') => {
     if (isSwitching || authProvider === targetProvider) return;
-    setIsSwitching(true);
-    setTargetMode(targetProvider);
 
-    // Delay para simular la transición fluida de modo sin salir a la pantalla de login
-    await new Promise((resolve) => setTimeout(resolve, 1800));
+    if (targetProvider === 'google' && !localStorage.getItem('google_token')) {
+      await loginWithGoogle();
+      return;
+    }
+    if (targetProvider === 'github' && !localStorage.getItem('github_token')) {
+      await loginWithGithub();
+      return;
+    }
 
     localStorage.setItem('auth_provider', targetProvider);
     setAuthProvider(targetProvider);
-
-    setIsSwitching(false);
-    setTargetMode(null);
+    await runOnboardingSequence(targetProvider);
   };
 
   const isDevMode = authProvider === 'github';
@@ -152,65 +188,87 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithGithub, switchAuthMode, logout, token, authProvider, isDevMode }}>
       {children}
 
-      {/* Screen Loader Transition for Mode Switch */}
+      {/* Step-by-Step Onboarding Screen Transition */}
       <AnimatePresence>
         {isSwitching && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] bg-slate-950/90 backdrop-blur-xl flex flex-col items-center justify-center p-6 text-center select-none"
+            className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-2xl flex flex-col items-center justify-center p-6 text-center select-none"
           >
-            <div className="relative mb-6">
-              <div className={`absolute -inset-4 rounded-full blur-2xl animate-pulse ${
-                targetMode === 'github' ? 'bg-amber-500/30' : 'bg-blue-500/30'
+            <div className="relative mb-8">
+              <div className={`absolute -inset-6 rounded-full blur-3xl animate-pulse ${
+                targetMode === 'github' ? 'bg-amber-500/25' : 'bg-blue-500/25'
               }`} />
               <motion.div
                 animate={{ rotate: 360 }}
-                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
-                className={`w-20 h-20 rounded-full border-2 border-dashed flex items-center justify-center ${
+                transition={{ duration: 4, repeat: Infinity, ease: 'linear' }}
+                className={`w-24 h-24 rounded-full border-2 border-dashed flex items-center justify-center ${
                   targetMode === 'github' ? 'border-amber-400/60' : 'border-blue-400/60'
                 }`}
               />
               <div className="absolute inset-0 flex items-center justify-center">
-                <DeerIcon size={32} className="text-white" />
+                <DeerIcon size={38} className="text-white" />
               </div>
             </div>
 
             <motion.h3
               initial={{ y: 10, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              className="text-xl font-bold text-white tracking-tight flex items-center gap-2"
+              className="text-xl font-bold text-white tracking-tight flex items-center gap-2 mb-6"
             >
               {targetMode === 'github' ? (
                 <>
-                  <Code2 className="text-amber-400" size={22} />
-                  <span>Cambiando a Modo Desarrollador</span>
+                  <Code2 className="text-amber-400" size={24} />
+                  <span>Configurando Modo Desarrollador</span>
                 </>
               ) : (
                 <>
-                  <ShieldCheck className="text-blue-400" size={22} />
-                  <span>Cambiando a Modo Gestión</span>
+                  <ShieldCheck className="text-blue-400" size={24} />
+                  <span>Configurando Modo Gestión e Inteligencia</span>
                 </>
               )}
             </motion.h3>
 
-            <p className="text-xs text-slate-400 mt-2 max-w-xs font-medium">
-              {targetMode === 'github'
-                ? 'Habilitando entorno de repositorios, sincronización de commits e IA Dev...'
-                : 'Habilitando permisos administrativos y módulos de gestión...'}
-            </p>
+            {/* Step-by-Step Progress List */}
+            <div className="w-full max-w-sm space-y-3 bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-left shadow-2xl">
+              <div className="flex items-center gap-3 text-xs">
+                {onboardingStep >= 1 ? (
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                ) : (
+                  <RefreshCw size={16} className="animate-spin text-slate-500 shrink-0" />
+                )}
+                <span className={onboardingStep >= 1 ? 'text-white font-semibold' : 'text-slate-500'}>
+                  1. Autenticación con {targetMode === 'github' ? 'GitHub' : 'Google'} completada
+                </span>
+              </div>
 
-            {/* Animated Progress Bar */}
-            <div className="w-56 h-1.5 bg-slate-800 rounded-full mt-6 overflow-hidden border border-slate-700/50">
-              <motion.div
-                initial={{ x: '-100%' }}
-                animate={{ x: '0%' }}
-                transition={{ duration: 1.7, ease: 'easeInOut' }}
-                className={`h-full ${
-                  targetMode === 'github' ? 'bg-gradient-to-r from-amber-500 to-amber-300' : 'bg-gradient-to-r from-blue-500 to-indigo-400'
-                }`}
-              />
+              <div className="flex items-center gap-3 text-xs">
+                {onboardingStep >= 2 ? (
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                ) : onboardingStep === 1 ? (
+                  <RefreshCw size={16} className="animate-spin text-blue-400 shrink-0" />
+                ) : (
+                  <Key size={16} className="text-slate-600 shrink-0" />
+                )}
+                <span className={onboardingStep >= 2 ? 'text-white font-semibold' : onboardingStep === 1 ? 'text-blue-300 font-medium' : 'text-slate-500'}>
+                  2. Sincronizando permisos de Drive, Gmail y Contactos
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3 text-xs">
+                {onboardingStep >= 3 ? (
+                  <CheckCircle2 size={16} className="text-emerald-400 shrink-0" />
+                ) : onboardingStep === 2 ? (
+                  <RefreshCw size={16} className="animate-spin text-purple-400 shrink-0" />
+                ) : (
+                  <Sparkles size={16} className="text-slate-600 shrink-0" />
+                )}
+                <span className={onboardingStep >= 3 ? 'text-white font-semibold' : onboardingStep === 2 ? 'text-purple-300 font-medium' : 'text-slate-500'}>
+                  3. Inicializando motor IA y guardando sesión persistente
+                </span>
+              </div>
             </div>
           </motion.div>
         )}

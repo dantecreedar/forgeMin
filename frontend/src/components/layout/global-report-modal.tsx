@@ -2,9 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, Sparkles, Inbox, Plus, Search, Users, User, ArrowRight, Key, ShieldAlert } from 'lucide-react';
+import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, Sparkles, Inbox, Plus, Search, Users, User, ArrowRight, Key, ShieldAlert, Link2, Reply, Filter, Check } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { DotsLoader } from '@/components/ui/dots-loader';
 
 interface GlobalReportModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface GlobalReportModalProps {
 interface GmailMessageItem {
   id: string;
   snippet: string;
+  fullBody?: string;
   subject?: string;
   from?: string;
   date?: string;
@@ -27,7 +29,7 @@ interface GoogleContactItem {
 }
 
 export function GlobalReportModal({ isOpen, onClose, defaultProjectName, defaultSummary }: GlobalReportModalProps) {
-  const { loginWithGoogle } = useAuth();
+  const { loginWithGoogle, user } = useAuth();
   const [folder, setFolder] = useState<'inbox' | 'compose' | 'contacts' | 'templates'>('inbox');
   const [selectedMessage, setSelectedMessage] = useState<GmailMessageItem | null>(null);
 
@@ -44,15 +46,19 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
   const [emailErrorMsg, setEmailErrorMsg] = useState<string | null>(null);
 
-  // Inbox & Contacts State
+  // Inbox & Filter State
   const [searchQuery, setSearchQuery] = useState('');
+  const [contactFilterEmail, setContactFilterEmail] = useState<string | null>(null);
   const [inboxMessages, setInboxMessages] = useState<GmailMessageItem[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
   const [contactsList, setContactsList] = useState<GoogleContactItem[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
 
+  // AI & Project Linking State
   const [analyzingMessageId, setAnalyzingMessageId] = useState<string | null>(null);
+  const [generatingReplyId, setGeneratingReplyId] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
+  const [linkedProjects, setLinkedProjects] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -68,7 +74,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         setGmailEmail(urlEmail);
       } else {
         const token = localStorage.getItem('gmail_access_token') || localStorage.getItem('google_token');
-        const email = localStorage.getItem('gmail_email') || localStorage.getItem('user_email') || 'Cuenta de Google';
+        const email = localStorage.getItem('gmail_email') || localStorage.getItem('user_email') || user?.email || 'Cuenta de Google';
         if (token) {
           setGmailConnected(true);
           setGmailToken(token);
@@ -76,7 +82,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         }
       }
     }
-  }, [isOpen]);
+  }, [isOpen, user]);
 
   useEffect(() => {
     if (isOpen && gmailToken) {
@@ -107,6 +113,45 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     }
   }, [reportType, defaultProjectName, defaultSummary]);
 
+  const decodeBase64 = (data: string): string => {
+    try {
+      const sanitized = data.replace(/-/g, '+').replace(/_/g, '/');
+      return decodeURIComponent(
+        atob(sanitized)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+    } catch {
+      return '';
+    }
+  };
+
+  const getFullBodyFromPayload = (payload: any): string => {
+    if (!payload) return '';
+    if (payload.body?.data) {
+      const decoded = decodeBase64(payload.body.data);
+      if (decoded) return decoded;
+    }
+    if (payload.parts && Array.isArray(payload.parts)) {
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/plain' && part.body?.data) {
+          const decoded = decodeBase64(part.body.data);
+          if (decoded) return decoded;
+        }
+      }
+      for (const part of payload.parts) {
+        if (part.mimeType === 'text/html' && part.body?.data) {
+          const decoded = decodeBase64(part.body.data);
+          if (decoded) {
+            return decoded.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          }
+        }
+      }
+    }
+    return '';
+  };
+
   const loadLiveInboxMessages = async () => {
     const tokenToUse = gmailToken || localStorage.getItem('google_token');
     if (!tokenToUse) return;
@@ -133,11 +178,14 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
             const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Remitente';
             const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || '';
 
+            const fullBody = getFullBodyFromPayload(detail.payload) || detail.snippet || '';
+
             return {
               id: msgItem.id,
               subject,
               from,
               snippet: detail.snippet || '',
+              fullBody,
               date: date ? new Date(date).toLocaleDateString() : '',
             };
           } catch {
@@ -149,7 +197,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       const loadedMsgs = messagesWithDetails.filter(Boolean) as GmailMessageItem[];
       setInboxMessages(loadedMsgs);
 
-      // Automatically generate contacts list from inbox senders
+      // Extract contacts automatically from inbox senders
       loadLiveContacts(loadedMsgs);
     } catch {
       setInboxMessages([]);
@@ -252,7 +300,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const analyzeEmailContent = async (msg: GmailMessageItem) => {
     setAnalyzingMessageId(msg.id);
     try {
-      const prompt = `Analiza el siguiente correo recibido y genera un resumen ejecutivo con puntos clave y acciones recomendadas:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.snippet}`;
+      const prompt = `Analiza el siguiente correo recibido y genera un resumen ejecutivo conciso con puntos clave y recomendaciones:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.fullBody || msg.snippet}`;
       const res = await api.engine.command(prompt);
       setAnalysisResults((prev) => ({
         ...prev,
@@ -268,15 +316,33 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     }
   };
 
-  const connectGmail = async () => {
+  const generateAIReply = async (msg: GmailMessageItem) => {
+    setGeneratingReplyId(msg.id);
     try {
-      const res = await api.gmail.getAuthUrl();
-      if (res.url) {
-        window.location.href = res.url;
-      }
-    } catch (err: any) {
-      alert('Error al vincular con Google: ' + (err.message || 'Verifica GOOGLE_CLIENT_ID'));
+      const prompt = `Redacta una respuesta profesional de correo electrónico para el siguiente mensaje recibido:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.fullBody || msg.snippet}`;
+      const res = await api.engine.command(prompt);
+
+      // Extract email address from sender header
+      let recipientEmail = msg.from || '';
+      const match = recipientEmail.match(/<([^>]+)>/);
+      if (match) recipientEmail = match[1];
+
+      setEmailTo(recipientEmail);
+      setEmailSubject(`Re: ${msg.subject || 'Respuesta'}`);
+      setEmailContent(res.message || 'Estimado/a, he recibido su mensaje y me encuentro revisándolo.');
+      setFolder('compose');
+    } catch {
+      alert('Error al generar respuesta sugerida.');
+    } finally {
+      setGeneratingReplyId(null);
     }
+  };
+
+  const handleLinkProject = (msgId: string, projectName: string) => {
+    setLinkedProjects((prev) => ({
+      ...prev,
+      [msgId]: projectName,
+    }));
   };
 
   const handleSendReportEmail = async () => {
@@ -317,12 +383,18 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     }
   };
 
-  const filteredMessages = inboxMessages.filter(
-    (m) =>
+  const filteredMessages = inboxMessages.filter((m) => {
+    const matchesSearch =
       m.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       m.snippet?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      m.from?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+      m.from?.toLowerCase().includes(searchQuery.toLowerCase());
+
+    const matchesContact = contactFilterEmail
+      ? m.from?.toLowerCase().includes(contactFilterEmail.toLowerCase())
+      : true;
+
+    return matchesSearch && matchesContact;
+  });
 
   const filteredContacts = contactsList.filter(
     (c) =>
@@ -435,15 +507,32 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
           <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
             {/* Top Bar */}
             <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
-              <div className="flex-1 max-w-md relative flex items-center">
-                <Search size={15} className="absolute left-3.5 text-slate-400" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder={folder === 'contacts' ? 'Buscar contactos...' : 'Buscar correos reales...'}
-                  className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-9 pr-4 py-2 text-xs text-slate-900 outline-none transition-all"
-                />
+              <div className="flex-1 max-w-md relative flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search size={15} className="absolute left-3.5 top-2.5 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder={folder === 'contacts' ? 'Buscar contactos...' : 'Buscar correos reales...'}
+                    className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-9 pr-4 py-2 text-xs text-slate-900 outline-none transition-all"
+                  />
+                </div>
+
+                {/* Active Contact Filter Badge */}
+                {contactFilterEmail && (
+                  <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl px-2.5 py-1 text-[11px] font-semibold flex items-center gap-1.5 shrink-0">
+                    <Filter size={12} />
+                    <span className="truncate max-w-[120px]">{contactFilterEmail}</span>
+                    <button
+                      onClick={() => setContactFilterEmail(null)}
+                      className="hover:bg-red-100 p-0.5 rounded-md text-red-600 transition-colors"
+                      title="Quitar filtro de contacto"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
@@ -478,20 +567,28 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   ) : filteredMessages.length === 0 ? (
                     <div className="py-16 text-center text-xs text-slate-400 space-y-3 px-6 max-w-sm mx-auto">
                       <Inbox size={28} className="text-slate-300 mx-auto" />
-                      <p className="font-bold text-slate-800 text-sm">Sin correos cargados aún</p>
-                      <p className="text-[11px] text-slate-500 leading-relaxed">
-                        Es necesario presionar el botón de Autorizar Permisos para conceder acceso a tu bandeja de entrada de Gmail.
-                      </p>
-                      <button
-                        onClick={handleAuthorizeScope}
-                        className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
-                      >
-                        <Key size={14} /> Autorizar Acceso a Gmail
-                      </button>
+                      <p className="font-bold text-slate-800 text-sm">Sin correos para este filtro</p>
+                      {contactFilterEmail ? (
+                        <button
+                          onClick={() => setContactFilterEmail(null)}
+                          className="text-xs text-blue-600 font-semibold hover:underline"
+                        >
+                          Limpiar filtro de contacto
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleAuthorizeScope}
+                          className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
+                        >
+                          <Key size={14} /> Autorizar Acceso a Gmail
+                        </button>
+                      )}
                     </div>
                   ) : (
                     filteredMessages.map((msg) => {
                       const isSelected = selectedMessage?.id === msg.id;
+                      const linkedProj = linkedProjects[msg.id];
+
                       return (
                         <div
                           key={msg.id}
@@ -510,6 +607,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                             </div>
                             <p className="text-xs font-semibold text-slate-800 truncate mt-0.5">{msg.subject}</p>
                             <p className="text-[11px] text-slate-500 truncate mt-0.5">{msg.snippet}</p>
+
+                            {linkedProj && (
+                              <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                                <Link2 size={10} />
+                                <span>{linkedProj}</span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
@@ -517,12 +621,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   )}
                 </div>
 
+                {/* Selected Email Detailed View */}
                 {selectedMessage && (
                   <div className="w-1/2 p-6 flex flex-col h-full overflow-y-auto space-y-4 bg-slate-50/50">
                     <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-200/80">
                       <div>
-                        <h4 className="text-sm font-bold text-slate-900">{selectedMessage.subject}</h4>
-                        <p className="text-xs text-slate-500 mt-0.5">De: {selectedMessage.from}</p>
+                        <h4 className="text-sm font-bold text-slate-900 leading-snug">{selectedMessage.subject}</h4>
+                        <p className="text-xs text-slate-500 mt-1">De: <span className="font-semibold text-slate-700">{selectedMessage.from}</span></p>
                       </div>
                       <button
                         onClick={() => setSelectedMessage(null)}
@@ -532,11 +637,31 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       </button>
                     </div>
 
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap shadow-2xs">
-                      {selectedMessage.snippet}
+                    {/* Full Email Message Body Box */}
+                    <div className="bg-white p-4 rounded-2xl border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap shadow-2xs max-h-60 overflow-y-auto">
+                      {selectedMessage.fullBody || selectedMessage.snippet}
                     </div>
 
-                    {analysisResults[selectedMessage.id] ? (
+                    {/* Link to Project Selector */}
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
+                        <Link2 size={14} className="text-purple-600" />
+                        <span>Proyecto / Repo:</span>
+                      </div>
+                      <select
+                        value={linkedProjects[selectedMessage.id] || ''}
+                        onChange={(e) => handleLinkProject(selectedMessage.id, e.target.value)}
+                        className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-800 font-medium"
+                      >
+                        <option value="">(Sin vincular)</option>
+                        <option value="ForgeMind Core">ForgeMind Core</option>
+                        <option value="Escuelas Platform">Escuelas Platform</option>
+                        <option value="Drive Sync Service">Drive Sync Service</option>
+                      </select>
+                    </div>
+
+                    {/* AI Analysis Box */}
+                    {analysisResults[selectedMessage.id] && (
                       <div className="p-4 bg-red-50/80 border border-red-200 rounded-2xl text-xs text-slate-800 space-y-1.5 shadow-2xs">
                         <div className="flex items-center gap-1.5 font-bold text-red-700">
                           <Sparkles size={14} />
@@ -546,16 +671,46 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                           {analysisResults[selectedMessage.id]}
                         </p>
                       </div>
-                    ) : (
+                    )}
+
+                    {/* Action Buttons: 3-Dots AI Analysis Loader & AI Suggested Reply */}
+                    <div className="flex items-center gap-2 pt-2">
                       <button
                         onClick={() => analyzeEmailContent(selectedMessage)}
                         disabled={analyzingMessageId === selectedMessage.id}
-                        className="bg-slate-900 hover:bg-slate-800 text-white rounded-2xl py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm w-fit"
+                        className="bg-slate-900 hover:bg-slate-800 disabled:opacity-80 text-white rounded-2xl py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm flex-1 min-h-[38px]"
                       >
-                        <Sparkles size={14} className={analyzingMessageId === selectedMessage.id ? 'animate-spin text-amber-400' : 'text-amber-400'} />
-                        <span>{analyzingMessageId === selectedMessage.id ? 'Analizando mensaje...' : 'Analizar Mensaje con IA'}</span>
+                        {analyzingMessageId === selectedMessage.id ? (
+                          <div className="flex items-center gap-2">
+                            <span>Analizando mensaje</span>
+                            <DotsLoader className="text-white" />
+                          </div>
+                        ) : (
+                          <>
+                            <Sparkles size={14} className="text-amber-400" />
+                            <span>Analizar con IA</span>
+                          </>
+                        )}
                       </button>
-                    )}
+
+                      <button
+                        onClick={() => generateAIReply(selectedMessage)}
+                        disabled={generatingReplyId === selectedMessage.id}
+                        className="bg-red-500 hover:bg-red-600 disabled:opacity-80 text-white rounded-2xl py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm flex-1 min-h-[38px]"
+                      >
+                        {generatingReplyId === selectedMessage.id ? (
+                          <div className="flex items-center gap-2">
+                            <span>Redactando</span>
+                            <DotsLoader className="text-white" />
+                          </div>
+                        ) : (
+                          <>
+                            <Reply size={14} />
+                            <span>Respuesta Sugerida</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -567,7 +722,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Users size={16} className="text-blue-600" />
-                    Mis Contactos Reales de Google
+                    Mis Contactos Reales de Google ({contactsList.length})
                   </h3>
                   <button
                     onClick={handleAuthorizeScope}
@@ -581,15 +736,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 {loadingContacts ? (
                   <div className="py-16 text-center text-xs text-slate-400 space-y-2">
                     <RefreshCw size={20} className="animate-spin text-blue-600 mx-auto" />
-                    <p>Consultando tu lista de contactos en Google People API...</p>
+                    <p>Consultando tu lista de contactos...</p>
                   </div>
                 ) : filteredContacts.length === 0 ? (
                   <div className="py-16 text-center text-xs text-slate-400 space-y-3 max-w-sm mx-auto">
                     <Users size={28} className="text-slate-300 mx-auto" />
                     <p className="font-bold text-slate-800 text-sm">Sin contactos sincronizados</p>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">
-                      Presiona el botón de abajo para iniciar la autorización de permisos de contactos de tu cuenta de Google.
-                    </p>
                     <button
                       onClick={handleAuthorizeScope}
                       className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
@@ -613,17 +765,31 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                             <p className="text-[11px] text-slate-500 truncate">{contact.email}</p>
                           </div>
                         </div>
-                        <button
-                          onClick={() => {
-                            setEmailTo(contact.email);
-                            setFolder('compose');
-                          }}
-                          className="p-2 rounded-xl bg-white hover:bg-blue-600 hover:text-white border border-slate-200 text-slate-600 text-xs font-semibold transition-all shrink-0 flex items-center gap-1"
-                          title="Enviar reporte a este contacto"
-                        >
-                          <span>Enviar</span>
-                          <ArrowRight size={12} />
-                        </button>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            onClick={() => {
+                              setContactFilterEmail(contact.email);
+                              setFolder('inbox');
+                            }}
+                            className="p-2 rounded-xl bg-white hover:bg-slate-900 hover:text-white border border-slate-200 text-slate-600 text-xs font-semibold transition-all flex items-center gap-1"
+                            title="Filtrar mensajes de este contacto"
+                          >
+                            <Filter size={12} />
+                            <span>Correos</span>
+                          </button>
+
+                          <button
+                            onClick={() => {
+                              setEmailTo(contact.email);
+                              setFolder('compose');
+                            }}
+                            className="p-2 rounded-xl bg-white hover:bg-red-500 hover:text-white border border-slate-200 text-slate-600 text-xs font-semibold transition-all flex items-center gap-1"
+                            title="Redactar reporte a este contacto"
+                          >
+                            <Send size={12} />
+                          </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -637,7 +803,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Send size={16} className="text-red-500" />
-                    Nuevo Reporte por Correo
+                    Nuevo Reporte / Respuesta por Correo
                   </h3>
                   <span className="text-xs text-slate-500 font-medium">Generador Inteligente</span>
                 </div>
@@ -753,7 +919,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     disabled={sendingEmail || !gmailConnected}
                     className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-colors"
                   >
-                    {sendingEmail ? <RefreshCw size={14} className="animate-spin" /> : <Send size={14} />}
+                    {sendingEmail ? <DotsLoader className="text-white" /> : <Send size={14} />}
                     {sendingEmail ? 'Enviando...' : 'Enviar por Gmail'}
                   </button>
                 </div>
