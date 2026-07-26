@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Save, Trash2, Search, MessageSquare, Calendar, ChevronRight, Check } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useProfileSettings } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
 
 export interface ChatSessionItem {
   id: string;
@@ -24,6 +26,10 @@ export interface ChatSessionItem {
 
 export default function SavedChatsPage() {
   const router = useRouter();
+  const { settings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang] || translations.es;
+
   const [chatSessions, setChatSessions] = useState<ChatSessionItem[]>([]);
   const [loadingSessions, setLoadingSessions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -79,9 +85,8 @@ export default function SavedChatsPage() {
     setChatSessions(updated);
     localStorage.setItem('forgemind_auto_chat_sessions', JSON.stringify(updated));
 
-    // Also remove from saved messages list
     window.dispatchEvent(new Event('forgemind:saved-responses-updated'));
-    showToast('Conversación eliminada del historial');
+    showToast(lang === 'en' ? 'Conversation removed from history' : 'Conversación eliminada del historial');
   };
 
   const handleOpenChatSession = (sessionId: string) => {
@@ -115,10 +120,10 @@ export default function SavedChatsPage() {
       <div className="border-b border-slate-200 pb-5">
         <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
           <Save className="text-amber-500" size={22} />
-          Historial de Conversaciones Guardadas
+          {t.savedChats.title}
         </h1>
         <p className="text-xs text-slate-500 mt-1">
-          Tus conversaciones guardadas de Inteligencia. Haz clic en cualquier conversación para abrirla directamente.
+          {t.savedChats.subtitle}
         </p>
       </div>
 
@@ -130,7 +135,7 @@ export default function SavedChatsPage() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Buscar por título, proyecto o mensaje..."
+            placeholder={t.savedChats.searchPlaceholder}
             className="w-full bg-white border border-slate-200 rounded-2xl pl-10 pr-4 py-2.5 text-xs text-slate-800 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-amber-500/20 shadow-2xs transition-all"
           />
         </div>
@@ -139,12 +144,13 @@ export default function SavedChatsPage() {
       {/* Sessions Grid */}
       <div className="space-y-3">
         {loadingSessions ? (
-          <div className="p-8 text-center text-xs text-slate-400">Cargando conversaciones...</div>
+          <div className="p-8 text-center text-xs text-slate-400">
+            {lang === 'en' ? 'Loading conversations...' : 'Cargando conversaciones...'}
+          </div>
         ) : filteredSessions.length === 0 ? (
           <div className="p-12 text-center bg-white border border-slate-200 rounded-3xl shadow-2xs space-y-2">
             <MessageSquare size={32} className="mx-auto text-slate-300" />
-            <p className="text-sm font-semibold text-slate-700">No hay conversaciones guardadas</p>
-            <p className="text-xs text-slate-400">Las conversaciones de Inteligencia se guardarán aquí automáticamente.</p>
+            <p className="text-sm font-semibold text-slate-700">{t.savedChats.noSaved}</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -176,14 +182,14 @@ export default function SavedChatsPage() {
                     </div>
 
                     <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
-                      {cleanPreview || 'Sin mensajes'}...
+                      {cleanPreview || (lang === 'en' ? 'No messages' : 'Sin mensajes')}...
                     </p>
                   </div>
 
                   <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-[10px] bg-slate-100 text-slate-600 font-medium px-2.5 py-0.5 rounded-full">
-                        {msgCount} {msgCount === 1 ? 'mensaje' : 'mensajes'}
+                        {msgCount} {msgCount === 1 ? (lang === 'en' ? 'message' : 'mensaje') : (lang === 'en' ? 'messages' : 'mensajes')}
                       </span>
                       {session.projectName && (
                         <span className="text-[10px] bg-blue-50 text-blue-600 font-semibold px-2.5 py-0.5 rounded-full border border-blue-200">
@@ -201,7 +207,7 @@ export default function SavedChatsPage() {
                         <Trash2 size={14} />
                       </button>
                       <button className="text-xs font-bold text-amber-600 group-hover:text-amber-700 flex items-center gap-0.5 pl-1">
-                        <span>Ver Chat</span>
+                        <span>{t.savedChats.viewChat}</span>
                         <ChevronRight size={14} />
                       </button>
                     </div>

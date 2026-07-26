@@ -3,7 +3,8 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v
 function getHeaders(): HeadersInit {
   const token = typeof window !== 'undefined' ? localStorage.getItem('auth_token') : null;
   const githubToken = typeof window !== 'undefined' ? localStorage.getItem('github_token') : null;
-  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  const language = typeof window !== 'undefined' ? localStorage.getItem('forgemind_language') || 'es' : 'es';
+  const headers: HeadersInit = { 'Content-Type': 'application/json', 'x-language': language };
   if (token) headers['Authorization'] = `Bearer ${token}`;
   if (githubToken) headers['x-github-token'] = githubToken;
   return headers;

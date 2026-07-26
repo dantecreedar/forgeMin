@@ -5,6 +5,8 @@ import { Mail, Send, Check, X, User, RefreshCw, Link2, AlertCircle } from 'lucid
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
 import { api } from '@/lib/api';
+import { useProfileSettings } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
 
 interface ContactItem {
   label: string;
@@ -19,6 +21,10 @@ interface SendEmailDropdownProps {
 
 export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDropdownProps) {
   const { user } = useAuth();
+  const { settings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang] || translations.es;
+
   const [open, setOpen] = useState(false);
   const [hasGmailToken, setHasGmailToken] = useState(false);
   const [pendingConfirmEmail, setPendingConfirmEmail] = useState<string | null>(null);
@@ -63,7 +69,9 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
   const fetchRealGmailContacts = async () => {
     const primaryProfileEmail =
       localStorage.getItem('gmail_email') || user?.email || defaultEmail || 'briangalli.cloud1993@gmail.com';
-    const primaryProfileName = user?.displayName ? `${user.displayName} (Perfil)` : 'Mi Perfil (Gmail)';
+    const primaryProfileName = user?.displayName
+      ? `${user.displayName} (${lang === 'en' ? 'Profile' : 'Perfil'})`
+      : `Mi Perfil (${lang === 'en' ? 'Gmail Profile' : 'Gmail'})`;
 
     const initialList: ContactItem[] = [
       { label: primaryProfileName, email: primaryProfileEmail },
@@ -168,7 +176,7 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
         title="Enviar respuesta por correo"
       >
         {isSent ? <Check size={13} /> : <Mail size={13} />}
-        <span>{isSent ? 'Enviado' : 'Enviar a Email'}</span>
+        <span>{isSent ? (lang === 'en' ? 'Sent' : 'Enviado') : (lang === 'en' ? 'Send to Email' : 'Enviar a Email')}</span>
       </button>
 
       {/* Submenu Dropdown Popover */}
@@ -186,7 +194,7 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
                 <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                   <span className="font-bold text-amber-400 flex items-center gap-1.5 text-xs">
                     <AlertCircle size={15} />
-                    Confirmar Envío por Gmail
+                    {t.email.confirmTitle}
                   </span>
                   <button
                     onClick={() => setPendingConfirmEmail(null)}
@@ -197,7 +205,7 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
                 </div>
 
                 <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-3 space-y-1">
-                  <p className="text-[11px] text-slate-400 font-medium">¿Enviar esta respuesta por correo a?</p>
+                  <p className="text-[11px] text-slate-400 font-medium">{t.email.confirmPrompt}</p>
                   <p className="text-xs font-bold text-white truncate">{pendingConfirmEmail}</p>
                 </div>
 
@@ -206,14 +214,14 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
                     onClick={() => setPendingConfirmEmail(null)}
                     className="px-3 py-1.5 rounded-xl text-xs font-medium text-slate-300 hover:bg-slate-800 transition-colors"
                   >
-                    Cambiar
+                    {t.email.changeBtn}
                   </button>
                   <button
                     onClick={handleFinalSend}
                     className="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-md transition-all"
                   >
                     <Send size={13} />
-                    <span>Confirmar Envío</span>
+                    <span>{t.email.confirmBtn}</span>
                   </button>
                 </div>
               </div>
@@ -224,7 +232,7 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
                 <div className="flex items-center justify-between pb-2.5 border-b border-slate-800">
                   <span className="font-semibold text-slate-200 flex items-center gap-1.5">
                     <Mail size={14} className="text-blue-400" />
-                    Enviar por Gmail
+                    {t.email.sendByGmail}
                   </span>
                   <button
                     onClick={() => setOpen(false)}
@@ -241,20 +249,20 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
                     className="w-full text-center bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 p-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5 transition-all"
                   >
                     <Link2 size={13} />
-                    <span>Vincular Gmail para Sincronizar Contactos</span>
+                    <span>{t.email.connectGmail}</span>
                   </button>
                 )}
 
                 {/* Custom Email Input with Instant Autocomplete Search */}
                 <div className="space-y-2">
-                  <label className="text-[11px] text-slate-400 font-medium">Buscar o escribir correo del destinatario:</label>
+                  <label className="text-[11px] text-slate-400 font-medium">{t.email.recipientLabel}</label>
                   <div className="flex items-center gap-1.5">
                     <input
                       type="email"
                       value={emailInput}
                       onChange={(e) => setEmailInput(e.target.value)}
                       onKeyDown={(e) => e.key === 'Enter' && handleRequestConfirmation(emailInput)}
-                      placeholder="Escribe o selecciona un correo..."
+                      placeholder={t.email.recipientPlaceholder}
                       className="flex-1 bg-slate-800/90 border border-slate-700 rounded-xl px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
                       autoFocus
                     />
@@ -273,18 +281,20 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
                 <div className="space-y-1 pt-2 border-t border-slate-800">
                   <div className="flex items-center justify-between mb-1">
                     <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
-                      Contactos Encontrados ({filteredContacts.length})
+                      {t.email.contactsFound} ({filteredContacts.length})
                     </p>
                     {loadingContacts && (
                       <span className="text-[10px] text-blue-400 flex items-center gap-1">
-                        <RefreshCw size={10} className="animate-spin" /> Buscando...
+                        <RefreshCw size={10} className="animate-spin" /> {t.email.searching}
                       </span>
                     )}
                   </div>
 
                   <div className="max-h-44 overflow-y-auto space-y-1 pr-1">
                     {filteredContacts.length === 0 ? (
-                      <p className="text-[11px] text-slate-400 p-2 italic">Sin contactos coincidentes</p>
+                      <p className="text-[11px] text-slate-400 p-2 italic">
+                        {lang === 'en' ? 'No matching contacts' : 'Sin contactos coincidentes'}
+                      </p>
                     ) : (
                       filteredContacts.map((item) => (
                         <button

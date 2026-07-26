@@ -34,6 +34,9 @@ import { GlobalReportModal } from './global-report-modal';
 import { DeerIcon } from '../ui/deer-icon';
 import { api } from '@/lib/api';
 
+import { useProfileSettings } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
+
 export interface ChatSessionSidebarItem {
   id: string;
   title: string;
@@ -43,18 +46,21 @@ export interface ChatSessionSidebarItem {
   updatedAt?: string;
 }
 
-const navItems = [
-  { href: '/dashboard', label: 'Intelligence', icon: LayoutDashboard },
-  { href: '/saved-chats', label: 'Guardados', icon: Save },
-  { href: '/workspaces', label: 'Workspaces', icon: Folder },
-  { href: '/repositories', label: 'Repositories', icon: FolderGit2, requiresDev: true },
-];
-
 export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
   const { user, logout, switchAuthMode, isDevMode } = useAuth();
+  const { settings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang] || translations.es;
+
+  const navItems = [
+    { href: '/dashboard', label: t.sidebar.intelligence, icon: LayoutDashboard },
+    { href: '/saved-chats', label: t.sidebar.savedChats, icon: Save },
+    { href: '/workspaces', label: t.sidebar.workspaces, icon: Folder },
+    { href: '/repositories', label: t.sidebar.repositories, icon: FolderGit2, requiresDev: true },
+  ];
 
   const [collapsed, setCollapsed] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
@@ -333,7 +339,7 @@ export function Sidebar() {
                           type="text"
                           value={chatSearchQuery}
                           onChange={(e) => setChatSearchQuery(e.target.value)}
-                          placeholder="Buscar chat..."
+                          placeholder={t.sidebar.searchChat}
                           className="w-full bg-white/10 hover:bg-white/15 focus:bg-white/20 border border-white/10 rounded-xl pl-7 pr-2 py-1 text-[11px] text-white placeholder:text-white/40 outline-none transition-all"
                         />
                       </div>
@@ -414,7 +420,7 @@ export function Sidebar() {
                                   className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-left"
                                 >
                                   <Link2 size={12} className="text-amber-400" />
-                                  <span>Vincular a Proyecto</span>
+                                  <span>{t.sidebar.linkToProject}</span>
                                 </button>
 
                                 {hasProject && (
@@ -423,7 +429,7 @@ export function Sidebar() {
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-slate-800 transition-colors text-left text-slate-300"
                                   >
                                     <Unlink size={12} className="text-slate-400" />
-                                    <span>Desvincular</span>
+                                    <span>{t.sidebar.unlink}</span>
                                   </button>
                                 )}
 
@@ -433,7 +439,7 @@ export function Sidebar() {
                                     className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-400 transition-colors text-left font-semibold"
                                   >
                                     <Trash2 size={12} />
-                                    <span>Borrar Chat</span>
+                                    <span>{t.sidebar.deleteChat}</span>
                                   </button>
                                 </div>
                               </div>

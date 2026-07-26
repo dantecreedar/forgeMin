@@ -11,6 +11,7 @@ import { SendEmailDropdown } from '@/components/chat/send-email-dropdown';
 import { DotsLoader } from '@/components/ui/dots-loader';
 import { DeerIcon } from '@/components/ui/deer-icon';
 import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
 
 interface Message {
   id: string;
@@ -73,6 +74,8 @@ export default function DashboardPage() {
   const sessionParam = searchParams.get('session');
 
   const { settings, saveResponse } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang] || translations.es;
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -330,7 +333,7 @@ export default function DashboardPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && send()}
-                  placeholder="Introduce una consulta o instrucción..."
+                  placeholder={t.dashboard.placeholder}
                   className="w-full bg-transparent px-2 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
                   autoFocus
                 />
@@ -491,7 +494,7 @@ export default function DashboardPage() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && send()}
-                  placeholder="Introduce una consulta o instrucción..."
+                  placeholder={t.dashboard.placeholder}
                   className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none py-1.5 px-1"
                 />
                 <button

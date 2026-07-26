@@ -13,6 +13,7 @@ export class EngineController {
   async command(
     @Body('message') message: string,
     @Headers('authorization') auth: string,
+    @Headers('x-language') language: string,
   ) {
     const token = auth?.replace('Bearer ', '');
     let userId = 'default_user';
@@ -27,13 +28,13 @@ export class EngineController {
     }
 
     try {
-      const result = await this.engine.process(userId, message);
+      const result = await this.engine.process(userId, message, language);
       return result;
     } catch (e: unknown) {
       const error = e as Error;
       return {
         type: 'chat',
-        message: error.message || 'No pude procesar la solicitud en este momento.',
+        message: error.message || (language === 'en' ? 'Could not process request at this moment.' : 'No pude procesar la solicitud en este momento.'),
       };
     }
   }

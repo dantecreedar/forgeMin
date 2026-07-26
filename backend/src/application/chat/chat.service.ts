@@ -77,10 +77,11 @@ export class ChatService {
     return this.sessionsStore.delete(id);
   }
 
-  async sendMessage(projectId: string, message: string) {
+  async sendMessage(projectId: string, message: string, lang = 'es') {
+    const isEnglish = lang === 'en';
     const lower = message.toLowerCase();
 
-    const createObjectivePatterns = ['crear objetivo:', 'nuevo objetivo:', 'crea un objetivo para:'];
+    const createObjectivePatterns = ['crear objetivo:', 'nuevo objetivo:', 'crea un objetivo para:', 'create objective:', 'new objective:'];
     const isExplicitObjectiveRequest = createObjectivePatterns.some((p) => lower.includes(p));
 
     if (isExplicitObjectiveRequest) {
@@ -104,7 +105,7 @@ export class ChatService {
 
         return {
           type: 'objective_created',
-          message: `Objetivo creado: ${created.title}`,
+          message: isEnglish ? `Objective created: ${created.title}` : `Objetivo creado: ${created.title}`,
           objective: created,
         };
       } catch {
@@ -116,7 +117,16 @@ export class ChatService {
       const history: ChatMessage[] = [
         {
           role: 'system',
-          content: `Eres el Asistente de Inteligencia de ForgeMind.
+          content: isEnglish
+            ? `You are the AI Assistant for ForgeMind.
+Your duty is to answer any technical or general user query fluently and expertly in English, like ChatGPT, giving highest priority to integrated ForgeMind features (project management, GitHub repo sync, document analysis, Google Drive sync, and Gmail report dispatch).
+
+MANDATORY FORMATTING RULE FOR ALL RESPONSES:
+- Present all information in a clean, highly organized and professional structure.
+- DO NOT use markdown symbols like '###', '***', '---', or noisy asterisk combinations like '* **Text:**'.
+- Use clean line breaks, structured spacing, and simple bullet points (•) for maximum readability.
+- ALWAYS respond in English.`
+            : `Eres el Asistente de Inteligencia de ForgeMind.
 Tu función es responder a cualquier consulta técnica, general o de desarrollo del usuario de manera fluida y experta, como ChatGPT, dando siempre máxima prioridad a las capacidades y funcionalidades integradas en la plataforma ForgeMind (gestión de proyectos, conexión a repositorios GitHub, análisis de documentos, sincronización de Google Drive y despacho de informes por Gmail).
 
 REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
@@ -136,7 +146,9 @@ REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
     } catch {
       return {
         type: 'error',
-        message: 'Lo siento, hubo un error al comunicarme con la IA. Intenta de nuevo.',
+        message: isEnglish
+          ? 'Sorry, an error occurred while communicating with the AI. Please try again.'
+          : 'Lo siento, hubo un error al comunicarme con la IA. Intenta de nuevo.',
       };
     }
   }

@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 export type MessageDesign = 'slate' | 'classic' | 'emerald' | 'violet';
+export type LanguageOption = 'es' | 'en';
 
 export interface SavedResponseItem {
   id: string;
@@ -18,6 +19,7 @@ export interface UserProfileSettings {
   watermarkOpacity: number;
   messageDesign: MessageDesign;
   userEmail: string;
+  language: LanguageOption;
 }
 
 interface SettingsContextType {
@@ -35,6 +37,7 @@ const defaultSettings: UserProfileSettings = {
   watermarkOpacity: 0.12,
   messageDesign: 'slate',
   userEmail: 'usuario@forgemind.app',
+  language: 'es',
 };
 
 const SettingsContext = createContext<SettingsContextType | undefined>(undefined);
@@ -76,6 +79,9 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setSettings((prev) => {
       const updated = { ...prev, ...newSettings };
       localStorage.setItem('forgemind_profile_settings', JSON.stringify(updated));
+      if (newSettings.language) {
+        localStorage.setItem('forgemind_language', newSettings.language);
+      }
       return updated;
     });
   };
@@ -83,6 +89,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const resetSettings = () => {
     setSettings(defaultSettings);
     localStorage.setItem('forgemind_profile_settings', JSON.stringify(defaultSettings));
+    localStorage.setItem('forgemind_language', 'es');
   };
 
   const saveResponse = (title: string, content: string) => {

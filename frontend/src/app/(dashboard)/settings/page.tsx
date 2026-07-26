@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
 import { motion } from 'framer-motion';
-import { Sparkles, Save, Check, RefreshCw, Type, Eye, Palette, Shield } from 'lucide-react';
+import { Sparkles, Save, Check, RefreshCw, Type, Eye, Palette, Shield, Globe, Mail } from 'lucide-react';
 import { SendEmailDropdown } from '@/components/chat/send-email-dropdown';
 
 const themes: Array<{
@@ -89,10 +89,10 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Palette className="text-primary" size={22} />
-            Configuración de Marca de Agua y Estilo
+            Configuración de Marca de Agua, Idioma y Estilo
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Personaliza el sello sutil de marca de agua y los temas visuales de tus respuestas de inteligencia.
+            Personaliza el idioma de respuesta de la IA, el sello sutil de marca de agua y los temas visuales de tu panel.
           </p>
         </div>
         <button
@@ -110,7 +110,59 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Form Settings */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Section 1: Marca de Agua */}
+          {/* Section 1: Idioma / Language */}
+          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
+              <Globe size={18} className="text-primary" />
+              <h2 className="text-sm font-semibold text-slate-900">Idioma de Inteligencia y Respuestas (Language)</h2>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                onClick={() => {
+                  updateSettings({ language: 'es' });
+                  showToast('Idioma cambiado a Español');
+                }}
+                className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                  settings.language === 'es' || !settings.language
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🇪🇸</span>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900">Español</p>
+                    <p className="text-[10px] text-muted-foreground">Respuestas e IA en español</p>
+                  </div>
+                </div>
+                {(settings.language === 'es' || !settings.language) && <Check size={14} className="text-primary" />}
+              </button>
+
+              <button
+                onClick={() => {
+                  updateSettings({ language: 'en' });
+                  showToast('Language changed to English');
+                }}
+                className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
+                  settings.language === 'en'
+                    ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
+                    : 'border-gray-200 hover:border-gray-300 bg-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-base">🇺🇸</span>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-900">English</p>
+                    <p className="text-[10px] text-muted-foreground">Responses & AI in English</p>
+                  </div>
+                </div>
+                {settings.language === 'en' && <Check size={14} className="text-primary" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Section 2: Marca de Agua */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
               <Shield size={18} className="text-primary" />
@@ -168,47 +220,6 @@ export default function SettingsPage() {
               </>
             )}
           </div>
-
-          {/* Section 2: Diseño del Mensaje */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-              <Palette size={18} className="text-primary" />
-              <h2 className="text-sm font-semibold text-slate-900">Diseño y Tema de Respuestas</h2>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {themes.map((theme) => {
-                const isSelected = settings.messageDesign === theme.id;
-                return (
-                  <button
-                    key={theme.id}
-                    onClick={() => {
-                      updateSettings({ messageDesign: theme.id });
-                      showToast(`Tema cambiado a ${theme.name}`);
-                    }}
-                    className={`p-3.5 rounded-xl border text-left transition-all relative flex flex-col justify-between space-y-2 ${
-                      isSelected
-                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5'
-                        : 'border-gray-200 hover:border-gray-300 bg-white'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-900">{theme.name}</span>
-                        {isSelected && <Check size={14} className="text-primary" />}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-1 leading-snug">
-                        {theme.description}
-                      </p>
-                    </div>
-                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-gray-100 text-slate-700 w-fit">
-                      {theme.badge}
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Live Interactive Preview */}
@@ -219,7 +230,7 @@ export default function SettingsPage() {
                 <Sparkles size={14} className="text-amber-500" /> Vista Previa en Tiempo Real
               </span>
               <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                Sin símbolos ### ***
+                {settings.language === 'en' ? 'English AI Mode' : 'Modo IA Español'}
               </span>
             </div>
 
@@ -237,43 +248,46 @@ export default function SettingsPage() {
 
               {/* Clean Content */}
               <div className="space-y-3 text-xs leading-relaxed">
-                <p className="font-semibold text-sm text-slate-900">Resumen de Análisis Técnico</p>
+                <p className="font-semibold text-sm text-slate-900">
+                  {settings.language === 'en' ? 'Technical Analysis Executive Summary' : 'Resumen de Análisis Técnico'}
+                </p>
                 <p>
-                  El sistema ha evaluado el documento y determinó que la infraestructura de seguridad es robusta y escalable.
+                  {settings.language === 'en'
+                    ? 'The AI system has evaluated the document and determined that the core architecture is robust and scalable.'
+                    : 'El sistema ha evaluado el documento y determinó que la infraestructura de seguridad es robusta y escalable.'}
                 </p>
 
                 <div className="space-y-1">
-                  <p className="font-semibold text-slate-900">Puntos clave identificados:</p>
+                  <p className="font-semibold text-slate-900">
+                    {settings.language === 'en' ? 'Key Identified Highlights:' : 'Puntos clave identificados:'}
+                  </p>
                   <ul className="space-y-1 pl-1">
                     <li className="flex items-start gap-1.5">
                       <span className="text-amber-500">•</span>
-                      <span>Integración completa con servicios en la nube.</span>
+                      <span>{settings.language === 'en' ? 'Full integration with cloud services.' : 'Integración completa con servicios en la nube.'}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-amber-500">•</span>
-                      <span>Segmentación de funciones por rol de usuario.</span>
+                      <span>{settings.language === 'en' ? 'Role-based access control segmentation.' : 'Segmentación de funciones por rol de usuario.'}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-amber-500">•</span>
-                      <span>Optimización de flujos de trabajo sin ruido de formato.</span>
+                      <span>{settings.language === 'en' ? 'Streamlined workflow without noisy formatting.' : 'Optimización de flujos de trabajo sin ruido de formato.'}</span>
                     </li>
                   </ul>
                 </div>
               </div>
 
-              {/* Action Buttons inside Response */}
-              <div className="mt-4 flex items-center justify-start gap-2">
-                <SendEmailDropdown
-                  defaultEmail="usuario@empresa.com"
-                  onSend={(targetEmail) => showToast(`Respuesta enviada a ${targetEmail}`)}
-                />
-                <button
-                  onClick={() => showToast('Respuesta guardada en la sección Guardados')}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-200/70 hover:bg-slate-200 text-slate-700 transition-all"
-                >
-                  <Save size={12} />
-                  <span>Guardar Respuesta</span>
-                </button>
+              {/* Static Non-Interactive Action Buttons Preview */}
+              <div className="mt-4 flex items-center justify-start gap-2 pointer-events-none select-none opacity-85 cursor-default">
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-200/70 text-slate-700 border border-slate-300/60">
+                  <Mail size={13} />
+                  <span>{settings.language === 'en' ? 'Send to Email' : 'Enviar a Email'}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-200/70 text-slate-700 border border-slate-300/60">
+                  <Save size={13} />
+                  <span>{settings.language === 'en' ? 'Save Response' : 'Guardar Respuesta'}</span>
+                </div>
               </div>
             </div>
 

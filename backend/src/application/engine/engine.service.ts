@@ -15,17 +15,23 @@ export class EngineService {
     private readonly repositories: RepositoryApplicationService,
   ) {}
 
-  async process(userId: string, message: string) {
+  async process(userId: string, message: string, language = 'es') {
     const lower = message.toLowerCase();
+    const isEnglish = language === 'en';
+
     if (
       lower.includes('analiza el siguiente documento') ||
       lower.includes('explica detalladamente el siguiente documento') ||
-      lower.includes('documento importado de google drive')
+      lower.includes('documento importado de google drive') ||
+      lower.includes('analyze the following document') ||
+      lower.includes('explain the following document')
     ) {
       const result = await this.gemini.chat([
         {
           role: 'system',
-          content: `Eres el Director de Inteligencia de ForgeMind. Analiza exhaustivamente el documento proporcionado por el usuario y genera un análisis técnico, estructurado y detallado en español. Organízalo con titulares, puntos clave, resumen ejecutivo e implicaciones operativas sin usar símbolos ### ni ***.`,
+          content: isEnglish
+            ? `You are the Chief Intelligence Officer for ForgeMind. Thoroughly analyze the provided document and generate a structured, executive technical analysis in clean English. Organize with section titles, key takeaways, executive summary, and operational implications without using ### or *** markdown symbols.`
+            : `Eres el Director de Inteligencia de ForgeMind. Analiza exhaustivamente el documento proporcionado por el usuario y genera un análisis técnico, estructurado y detallado en español. Organízalo con titulares, puntos clave, resumen ejecutivo e implicaciones operativas sin usar símbolos ### ni ***.`,
         },
         { role: 'user', content: message },
       ]);
@@ -47,13 +53,21 @@ export class EngineService {
       ) {
         throw new Error('Fallback to chat');
       }
-      return await this.execute(userId, parsed);
+      return await this.execute(userId, parsed, language);
     } catch {
       // General ChatGPT fallback for greetings, general queries & natural conversation
       const result = await this.gemini.chat([
         {
           role: 'system',
-          content: `Eres el Asistente de Inteligencia de ForgeMind. Responde de manera fluida, cordial y profesional a la consulta del usuario en español.
+          content: isEnglish
+            ? `You are the AI Assistant for ForgeMind. Respond in a clean, highly professional and helpful manner to the user's query in English.
+
+MANDATORY FORMATTING RULE FOR ALL RESPONSES:
+- Present all information in a clean, highly organized and professional structure.
+- DO NOT use markdown symbols like '###', '***', '---', or noisy asterisk combinations like '* **Text:**'.
+- Use clean line breaks, structured spacing, and simple bullet points (•) for maximum readability.
+- ALWAYS respond in English.`
+            : `Eres el Asistente de Inteligencia de ForgeMind. Responde de manera fluida, cordial y profesional a la consulta del usuario en español.
 
 REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
 - Presenta la información de forma sumamente organizada, clara y profesional.
@@ -73,17 +87,17 @@ REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
   private async parseIntent(userId: string, message: string) {
     const systemPrompt = `Eres el motor de inteligencia de ForgeMind. Analiza el mensaje del usuario y determina QUÉ acción quiere realizar.
 
-    Si el usuario simplemente saluda (ej: 'hola', 'buenas'), hace una consulta general o conversación no relacionada con administración de entidades, responde con action: "chat", entity: "chat".
+    Si el usuario simplemente saluda (ej: 'hola', 'buenas', 'hello', 'hi'), hace una consulta general o conversación no relacionada con administración de entidades, responde con action: "chat", entity: "chat".
 
     IMPORTANTE - AUTOCORRECCIÓN DE TYPOS Y ERRORES DE TIPIO:
-    - 'sproyectios', 'proyeto', 'proyectos', 'proyecto' -> entity: 'project'
-    - 'objetico', 'objetivo', 'objetivos', 'meta', 'metas', 'task', 'tarea' -> entity: 'objective'
+    - 'sproyectios', 'proyeto', 'proyectos', 'proyecto', 'project', 'projects' -> entity: 'project'
+    - 'objetico', 'objetivo', 'objetivos', 'meta', 'metas', 'task', 'tarea', 'goal', 'goals' -> entity: 'objective'
     - 'workspace', 'espacio', 'workspaces' -> entity: 'workspace'
-    - 'repo', 'repositorio', 'repositorios', 'github' -> entity: 'github_repo'
-    - 'vincular', 'conectar', 'linkear' -> action: 'connect'
-    - 'crea', 'crear', 'nuevo', 'añadir' -> action: 'create'
-    - 'tengo', 'mostrar', 'listar', 'ver', 'lista', 'tiene' -> action: 'list'
-    - 'analizar todo', 'resumen global', 'resumen general', 'analiza todo', 'resumen de proyectos' -> action: 'analyze_all', entity: 'project'
+    - 'repo', 'repositorio', 'repositorios', 'github', 'repository' -> entity: 'github_repo'
+    - 'vincular', 'conectar', 'linkear', 'connect', 'link' -> action: 'connect'
+    - 'crea', 'crear', 'nuevo', 'añadir', 'create', 'add', 'new' -> action: 'create'
+    - 'tengo', 'mostrar', 'listar', 'ver', 'lista', 'tiene', 'list', 'show' -> action: 'list'
+    - 'analizar todo', 'resumen global', 'resumen general', 'analiza todo', 'analyze all', 'global summary' -> action: 'analyze_all', entity: 'project'
 
     Acciones disponibles:
     - chat: conversación general o saludo
@@ -128,16 +142,19 @@ REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
     }
   }
 
-  private async execute(userId: string, parsed: { action: string; entity: string; data: Record<string, unknown>; search?: string }) {
+  private async execute(userId: string, parsed: { action: string; entity: string; data: Record<string, unknown>; search?: string }, language = 'es') {
+    const isEnglish = language === 'en';
     const aliases: Record<string, string> = { 
       task: 'objective', 
       tarea: 'objective',
+      goal: 'objective',
       objetico: 'objective',
       proyeto: 'project',
       sproyectios: 'project',
       repo: 'github_repo',
       repositorio: 'github_repo',
       repositorios: 'github_repo',
+      repository: 'github_repo',
     };
     const entity = aliases[parsed.entity] || parsed.entity;
     const { action, data } = parsed;
@@ -151,7 +168,12 @@ REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
       }
 
       if (allProjects.length === 0) {
-        return { type: 'global_summary', message: 'No se encontraron proyectos para analizar. Crea tu primer proyecto primero.' };
+        return {
+          type: 'global_summary',
+          message: isEnglish
+            ? 'No projects found to analyze. Please create your first project.'
+            : 'No se encontraron proyectos para analizar. Crea tu primer proyecto primero.',
+        };
       }
 
       const enriched = await Promise.all(
@@ -168,7 +190,17 @@ REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
         })
       );
 
-      const prompt = `Eres el Director de Tecnología e Inteligencia de ForgeMind. Analiza la totalidad de los proyectos del usuario y genera un Informe Ejecutivo Global consolidado en español:
+      const prompt = isEnglish
+        ? `You are the Chief Technology and Intelligence Officer for ForgeMind. Analyze all user projects and generate a consolidated Global Executive Report in English:
+
+Required Structure:
+1. 📊 OVERVIEW DIAGNOSIS: Ecosystem state (total projects, estimated global progress).
+2. 🚀 PROJECT BREAKDOWN: Concise balance for each project (objective progress and repositories).
+3. 💡 STRATEGIC AI RECOMMENDATIONS: 2-3 concrete actionable recommendations to accelerate engineering.
+
+User Ecosystem Data:
+${JSON.stringify(enriched, null, 2)}`
+        : `Eres el Director de Tecnología e Inteligencia de ForgeMind. Analiza la totalidad de los proyectos del usuario y genera un Informe Ejecutivo Global consolidado en español:
 
 Estructura requerida:
 1. 📊 ESTADO GENERAL: Diagnóstico del ecosistema (total de proyectos, avance global estimado).
@@ -185,14 +217,21 @@ ${JSON.stringify(enriched, null, 2)}`;
         entity: 'project',
         summary: result.reply,
         projectsCount: allProjects.length,
-        message: `Análisis global de ${allProjects.length} proyecto${allProjects.length !== 1 ? 's' : ''} completado exitosamente.`
+        message: isEnglish
+          ? `Global analysis of ${allProjects.length} project${allProjects.length !== 1 ? 's' : ''} completed successfully.`
+          : `Análisis global de ${allProjects.length} proyecto${allProjects.length !== 1 ? 's' : ''} completado exitosamente.`,
       };
     }
 
     if (action === 'list') {
       if (entity === 'workspace') {
         const list = await this.workspaces.findByUser(userId);
-        return { type: 'list', entity: 'workspace', items: list, message: `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}` };
+        return {
+          type: 'list',
+          entity: 'workspace',
+          items: list,
+          message: isEnglish ? `You have ${list.length} workspace${list.length !== 1 ? 's' : ''}` : `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}`,
+        };
       }
       if (entity === 'project') {
         let rawProjects: any[] = [];
@@ -206,7 +245,12 @@ ${JSON.stringify(enriched, null, 2)}`;
           }
         }
         if (rawProjects.length === 0) {
-          return { type: 'list', entity: 'project', items: [], message: 'No tienes ningún proyecto registrado todavía.' };
+          return {
+            type: 'list',
+            entity: 'project',
+            items: [],
+            message: isEnglish ? 'You do not have any registered projects yet.' : 'No tienes ningún proyecto registrado todavía.',
+          };
         }
 
         const enrichedProjects = await Promise.all(
@@ -217,7 +261,14 @@ ${JSON.stringify(enriched, null, 2)}`;
           })
         );
 
-        return { type: 'list', entity: 'project', items: enrichedProjects, message: `Tienes ${enrichedProjects.length} proyecto${enrichedProjects.length !== 1 ? 's' : ''}` };
+        return {
+          type: 'list',
+          entity: 'project',
+          items: enrichedProjects,
+          message: isEnglish
+            ? `You have ${enrichedProjects.length} project${enrichedProjects.length !== 1 ? 's' : ''}`
+            : `Tienes ${enrichedProjects.length} proyecto${enrichedProjects.length !== 1 ? 's' : ''}`,
+        };
       }
 
       if (entity === 'objective') {
@@ -228,19 +279,37 @@ ${JSON.stringify(enriched, null, 2)}`;
           list = await this.objectives.findByUserId(userId);
         }
         if (list.length === 0) {
-          return { type: 'list', entity: 'objective', items: [], message: 'No tienes ningún objetivo registrado todavía.' };
+          return {
+            type: 'list',
+            entity: 'objective',
+            items: [],
+            message: isEnglish ? 'You do not have any registered objectives yet.' : 'No tienes ningún objetivo registrado todavía.',
+          };
         }
-        return { type: 'list', entity: 'objective', items: list, message: `Tienes ${list.length} objetivo${list.length !== 1 ? 's' : ''}` };
+        return {
+          type: 'list',
+          entity: 'objective',
+          items: list,
+          message: isEnglish ? `You have ${list.length} objective${list.length !== 1 ? 's' : ''}` : `Tienes ${list.length} objetivo${list.length !== 1 ? 's' : ''}`,
+        };
       }
 
       if (entity === 'github_repo') {
         try {
           const username = data.username as string | undefined;
           const list = await this.repositories.fetchGitHubRepositories(username);
-          return { type: 'list', entity: 'github_repo', items: list, message: `Tienes ${list.length} repositorio${list.length !== 1 ? 's' : ''} en GitHub` };
+          return {
+            type: 'list',
+            entity: 'github_repo',
+            items: list,
+            message: isEnglish ? `You have ${list.length} GitHub repos` : `Tienes ${list.length} repositorio${list.length !== 1 ? 's' : ''} en GitHub`,
+          };
         } catch (e: unknown) {
           const err = e as Error;
-          return { type: 'error', message: `No se pudieron obtener los repositorios de GitHub: ${err.message}` };
+          return {
+            type: 'error',
+            message: isEnglish ? `Could not fetch GitHub repositories: ${err.message}` : `No se pudieron obtener los repositorios de GitHub: ${err.message}`,
+          };
         }
       }
     }
@@ -248,41 +317,85 @@ ${JSON.stringify(enriched, null, 2)}`;
     if (action === 'create') {
       if (entity === 'workspace') {
         const ws = await this.workspaces.create(data.name as string, userId, data.description as string);
-        return { type: 'created', entity: 'workspace', item: ws, message: `Workspace "${ws.name}" creado exitosamente` };
+        return {
+          type: 'created',
+          entity: 'workspace',
+          item: ws,
+          message: isEnglish ? `Workspace "${ws.name}" created successfully` : `Workspace "${ws.name}" creado exitosamente`,
+        };
       }
       if (entity === 'project') {
         let workspaceId = data.workspaceId as string;
         if (!workspaceId) {
           const wss = await this.workspaces.findByUser(userId);
-          if (wss.length === 0) return { type: 'message', message: 'Primero creá un workspace. Decí: "crea un workspace llamado [nombre]"' };
+          if (wss.length === 0) {
+            return {
+              type: 'message',
+              message: isEnglish
+                ? 'Create a workspace first. Say: "create a workspace named [name]"'
+                : 'Primero creá un workspace. Decí: "crea un workspace llamado [nombre]"',
+            };
+          }
           workspaceId = wss[0].id;
         }
         const proj = await this.projects.create(workspaceId, data.name as string, data.description as string);
-        return { type: 'created', entity: 'project', item: proj, message: `Proyecto "${proj.name}" creado exitosamente` };
+        return {
+          type: 'created',
+          entity: 'project',
+          item: proj,
+          message: isEnglish ? `Project "${proj.name}" created successfully` : `Proyecto "${proj.name}" creado exitosamente`,
+        };
       }
       if (entity === 'objective') {
         const title = (data.title || data.name) as string;
         if (!title || !title.trim()) {
-          return { type: 'error', message: 'Se requiere un título para el objetivo. Por ejemplo: "crea un objetivo llamado Implementar OAuth"' };
+          return {
+            type: 'error',
+            message: isEnglish
+              ? 'A title is required for the objective. E.g.: "create an objective named Implement OAuth"'
+              : 'Se requiere un título para el objetivo. Por ejemplo: "crea un objetivo llamado Implementar OAuth"',
+          };
         }
         let projId = data.projectId as string;
         if (!projId) {
           const wss = await this.workspaces.findByUser(userId);
-          if (wss.length === 0) return { type: 'message', message: 'Primero creá un workspace. Decí: "crea un workspace llamado [nombre]"' };
+          if (wss.length === 0) {
+            return {
+              type: 'message',
+              message: isEnglish
+                ? 'Create a workspace first. Say: "create a workspace named [name]"'
+                : 'Primero creá un workspace. Decí: "crea un workspace llamado [nombre]"',
+            };
+          }
           const allProjects = [];
           for (const ws of wss) {
             const ps = await this.projects.findByWorkspaceId(ws.id);
             allProjects.push(...ps);
           }
-          if (allProjects.length === 0) return { type: 'message', message: 'Tenés workspace pero no tenés ningún proyecto. Decí: "crea un proyecto llamado [nombre]" para poder agregar objetivos.' };
+          if (allProjects.length === 0) {
+            return {
+              type: 'message',
+              message: isEnglish
+                ? 'You have a workspace but no projects. Say: "create a project named [name]" first.'
+                : 'Tenés workspace pero no tenés ningún proyecto. Decí: "crea un proyecto llamado [nombre]" para poder agregar objetivos.',
+            };
+          }
           projId = allProjects[0].id;
         }
         try {
           const obj = await this.objectives.create(projId, title.trim(), data.description as string, data.tags as string[]);
-          return { type: 'created', entity: 'objective', item: obj, message: `Objetivo "${obj.title}" creado exitosamente` };
+          return {
+            type: 'created',
+            entity: 'objective',
+            item: obj,
+            message: isEnglish ? `Objective "${obj.title}" created successfully` : `Objetivo "${obj.title}" creado exitosamente`,
+          };
         } catch (e: unknown) {
           const err = e as Error;
-          return { type: 'error', message: `No pude crear el objetivo: ${err.message}` };
+          return {
+            type: 'error',
+            message: isEnglish ? `Could not create objective: ${err.message}` : `No pude crear el objetivo: ${err.message}`,
+          };
         }
       }
     }
@@ -297,7 +410,12 @@ ${JSON.stringify(enriched, null, 2)}`;
         data.blockers as string[],
         data.nextSteps as string[],
       );
-      return { type: 'updated', entity: 'objective', item: updated, message: `Objetivo "${updated.title}" actualizado` };
+      return {
+        type: 'updated',
+        entity: 'objective',
+        item: updated,
+        message: isEnglish ? `Objective "${updated.title}" updated` : `Objetivo "${updated.title}" actualizado`,
+      };
     }
 
     if (action === 'detail') {
@@ -318,15 +436,15 @@ ${JSON.stringify(enriched, null, 2)}`;
     if (action === 'delete') {
       if (entity === 'objective') {
         await this.objectives.delete(data.id as string);
-        return { type: 'deleted', entity: 'objective', message: 'Objetivo eliminado' };
+        return { type: 'deleted', entity: 'objective', message: isEnglish ? 'Objective deleted' : 'Objetivo eliminado' };
       }
       if (entity === 'project') {
         await this.projects.delete(data.id as string);
-        return { type: 'deleted', entity: 'project', message: 'Proyecto eliminado' };
+        return { type: 'deleted', entity: 'project', message: isEnglish ? 'Project deleted' : 'Proyecto eliminado' };
       }
       if (entity === 'workspace') {
         await this.workspaces.archive(data.id as string);
-        return { type: 'deleted', entity: 'workspace', message: 'Workspace archivado' };
+        return { type: 'deleted', entity: 'workspace', message: isEnglish ? 'Workspace archived' : 'Workspace archivado' };
       }
     }
 
@@ -343,17 +461,33 @@ ${JSON.stringify(enriched, null, 2)}`;
         }
       }
       if (!projectId) {
-        return { type: 'error', message: 'No tienes ningún proyecto para vincular. Crea un proyecto primero.' };
+        return {
+          type: 'error',
+          message: isEnglish ? 'You do not have any project to connect. Create a project first.' : 'No tienes ningún proyecto para vincular. Crea un proyecto primero.',
+        };
       }
       const owner = (data.owner || 'user') as string;
       const name = (data.name || data.repoName) as string;
       const defaultBranch = (data.defaultBranch || 'main') as string;
       const connected = await this.repositories.connect(projectId, owner, name, defaultBranch, [defaultBranch]);
-      return { type: 'connected', entity: 'github_repo', item: connected, message: `Repositorio ${owner}/${name} vinculado exitosamente` };
+      return {
+        type: 'connected',
+        entity: 'github_repo',
+        item: connected,
+        message: isEnglish ? `Repository ${owner}/${name} linked successfully` : `Repositorio ${owner}/${name} vinculado exitosamente`,
+      };
     }
 
     // Default conversational fallback
-    const result = await this.gemini.chat([{ role: 'user', content: `Responde cordialmente: ${parsed.action}` }]);
+    const result = await this.gemini.chat([
+      {
+        role: 'system',
+        content: isEnglish
+          ? 'You are the AI Assistant for ForgeMind. Respond politely and clearly in English.'
+          : 'Eres el Asistente de Inteligencia de ForgeMind. Responde cordialmente en español.',
+      },
+      { role: 'user', content: parsed.action },
+    ]);
     return { type: 'chat', message: result.reply };
   }
 }

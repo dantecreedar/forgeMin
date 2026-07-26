@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Body, Param } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Body, Param, Headers } from '@nestjs/common';
 import { ChatService, ChatSession } from '../../application/chat/chat.service';
 
 @Controller('chat')
@@ -33,7 +33,8 @@ export class ChatController {
   async sendMessage(
     @Body('projectId') projectId: string,
     @Body('message') message: string,
+    @Headers('x-language') language: string,
   ) {
-    return this.chatService.sendMessage(projectId, message);
+    return this.chatService.sendMessage(projectId, message, language);
   }
 }
