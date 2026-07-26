@@ -97,6 +97,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const provider = new GoogleAuthProvider();
     provider.addScope('https://www.googleapis.com/auth/drive.readonly');
     provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
+    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+    provider.addScope('https://www.googleapis.com/auth/gmail.send');
     localStorage.setItem('auth_provider', 'google');
     setAuthProvider('google');
     const result = await signInWithPopup(auth, provider);

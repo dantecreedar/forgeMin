@@ -2,8 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, Sparkles, Inbox, Plus, Search, Star, Clock, Tag, ChevronRight, Eye, ShieldCheck } from 'lucide-react';
+import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, Sparkles, Inbox, Plus, Search, Users, User, ArrowRight, Key, ShieldAlert } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth-context';
 
 interface GlobalReportModalProps {
   isOpen: boolean;
@@ -20,8 +21,14 @@ interface GmailMessageItem {
   date?: string;
 }
 
+interface GoogleContactItem {
+  name: string;
+  email: string;
+}
+
 export function GlobalReportModal({ isOpen, onClose, defaultProjectName, defaultSummary }: GlobalReportModalProps) {
-  const [folder, setFolder] = useState<'inbox' | 'compose' | 'templates' | 'sent'>('inbox');
+  const { loginWithGoogle } = useAuth();
+  const [folder, setFolder] = useState<'inbox' | 'compose' | 'contacts' | 'templates'>('inbox');
   const [selectedMessage, setSelectedMessage] = useState<GmailMessageItem | null>(null);
 
   const [gmailConnected, setGmailConnected] = useState(false);
@@ -37,10 +44,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
   const [emailErrorMsg, setEmailErrorMsg] = useState<string | null>(null);
 
-  // Inbox & Search State
+  // Inbox & Contacts State
   const [searchQuery, setSearchQuery] = useState('');
   const [inboxMessages, setInboxMessages] = useState<GmailMessageItem[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
+  const [contactsList, setContactsList] = useState<GoogleContactItem[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
+
   const [analyzingMessageId, setAnalyzingMessageId] = useState<string | null>(null);
   const [analysisResults, setAnalysisResults] = useState<Record<string, string>>({});
 
@@ -58,7 +68,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         setGmailEmail(urlEmail);
       } else {
         const token = localStorage.getItem('gmail_access_token') || localStorage.getItem('google_token');
-        const email = localStorage.getItem('gmail_email') || 'Cuenta de Google';
+        const email = localStorage.getItem('gmail_email') || localStorage.getItem('user_email') || 'Cuenta de Google';
         if (token) {
           setGmailConnected(true);
           setGmailToken(token);
@@ -69,8 +79,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen && gmailToken && folder === 'inbox') {
-      loadInboxMessages();
+    if (isOpen && gmailToken) {
+      if (folder === 'inbox') {
+        loadLiveInboxMessages();
+      } else if (folder === 'contacts') {
+        loadLiveContacts();
+      }
     }
   }, [isOpen, folder, gmailToken]);
 
@@ -83,7 +97,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     } else if (reportType === 'documents') {
       setEmailSubject(`Reporte de Documentos y Especificaciones Técnicas`);
       setEmailContent(
-        `Resumen de Análisis de Documentación Técnica:\n\n- Proyecto: ${defaultProjectName || 'ForgeMind'}\n- Estado: Documentación verificada e integrada en el sistema.`
+        `Resumen de Análisis de Documentación Técnica:\n\n- Proyecto: ${defaultProjectName || 'ForgeMind'}\n- Estado: Documentación verificada e integrada.`
       );
     } else {
       setEmailSubject(`Reporte de Estado Global de la Plataforma`);
@@ -93,38 +107,152 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     }
   }, [reportType, defaultProjectName, defaultSummary]);
 
-  const loadInboxMessages = async () => {
-    if (!gmailToken) return;
+  const loadLiveInboxMessages = async () => {
+    const tokenToUse = gmailToken || localStorage.getItem('google_token');
+    if (!tokenToUse) return;
     setLoadingInbox(true);
     try {
-      const res = await api.gmail.getMessages(gmailToken);
-      setInboxMessages(res.messages || []);
+      const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15', {
+        headers: { Authorization: `Bearer ${tokenToUse}` },
+      });
+      const listData = await listRes.json();
+      if (!listRes.ok) {
+        throw new Error(listData.error?.message || 'Error de la API de Gmail');
+      }
+
+      const rawMessages = listData.messages || [];
+      const messagesWithDetails = await Promise.all(
+        rawMessages.map(async (msgItem: { id: string }) => {
+          try {
+            const detailRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgItem.id}?format=full`, {
+              headers: { Authorization: `Bearer ${tokenToUse}` },
+            });
+            const detail = await detailRes.json();
+            const headers = detail.payload?.headers || [];
+            const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || 'Sin asunto';
+            const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Remitente';
+            const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || '';
+
+            return {
+              id: msgItem.id,
+              subject,
+              from,
+              snippet: detail.snippet || '',
+              date: date ? new Date(date).toLocaleDateString() : '',
+            };
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      const loadedMsgs = messagesWithDetails.filter(Boolean) as GmailMessageItem[];
+      setInboxMessages(loadedMsgs);
+
+      // Automatically generate contacts list from inbox senders
+      loadLiveContacts(loadedMsgs);
     } catch {
-      setInboxMessages([
-        {
-          id: 'msg-1',
-          subject: 'Revisión de Requerimientos de Seguridad',
-          from: 'Soporte Institucional <soporte@escuelas.edu>',
-          snippet: 'Solicitud de informe de prioridades y niveles de madurez de medición para la auditoría técnica.',
-          date: new Date().toLocaleDateString(),
-        },
-        {
-          id: 'msg-2',
-          subject: 'Confirmación de Licencias Org Admin',
-          from: 'Administración Distrito <admin@distrito.edu>',
-          snippet: 'Envío de lista de nuevos usuarios autorizados para acceso a la plataforma.',
-          date: new Date().toLocaleDateString(),
-        },
-      ]);
+      setInboxMessages([]);
     } finally {
       setLoadingInbox(false);
+    }
+  };
+
+  const extractContactsFromInbox = (messages: GmailMessageItem[]): GoogleContactItem[] => {
+    const map = new Map<string, string>();
+    messages.forEach((msg) => {
+      if (!msg.from) return;
+      const match = msg.from.match(/^(?:"?([^"<]+)"?\s*)?<?([^>]+)>?$/);
+      if (match) {
+        const name = match[1]?.trim() || match[2].split('@')[0];
+        const email = match[2]?.trim();
+        if (email && email.includes('@')) {
+          map.set(email.toLowerCase(), name);
+        }
+      } else if (msg.from.includes('@')) {
+        map.set(msg.from.toLowerCase(), msg.from.split('@')[0]);
+      }
+    });
+
+    return Array.from(map.entries()).map(([email, name]) => ({ name, email }));
+  };
+
+  const loadLiveContacts = async (currentInboxMsgs?: GmailMessageItem[]) => {
+    const tokenToUse = gmailToken || localStorage.getItem('google_token');
+    setLoadingContacts(true);
+    try {
+      const msgsToUse = currentInboxMsgs || inboxMessages;
+      const inboxContacts = extractContactsFromInbox(msgsToUse);
+      let apiContacts: GoogleContactItem[] = [];
+
+      if (tokenToUse) {
+        const [connectionsRes, otherContactsRes] = await Promise.allSettled([
+          fetch('https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses&pageSize=50', {
+            headers: { Authorization: `Bearer ${tokenToUse}` },
+          }),
+          fetch('https://people.googleapis.com/v1/otherContacts?readMask=names,emailAddresses&pageSize=50', {
+            headers: { Authorization: `Bearer ${tokenToUse}` },
+          }),
+        ]);
+
+        if (connectionsRes.status === 'fulfilled' && connectionsRes.value.ok) {
+          const data = await connectionsRes.value.json();
+          (data.connections || []).forEach((p: any) => {
+            const name = p.names?.[0]?.displayName || 'Contacto';
+            const email = p.emailAddresses?.[0]?.value;
+            if (email) apiContacts.push({ name, email });
+          });
+        }
+
+        if (otherContactsRes.status === 'fulfilled' && otherContactsRes.value.ok) {
+          const data = await otherContactsRes.value.json();
+          (data.otherContacts || []).forEach((p: any) => {
+            const name = p.names?.[0]?.displayName || 'Contacto Frecuente';
+            const email = p.emailAddresses?.[0]?.value;
+            if (email) apiContacts.push({ name, email });
+          });
+        }
+      }
+
+      const combined = [...inboxContacts, ...apiContacts];
+      const uniqueContacts: GoogleContactItem[] = [];
+      const seen = new Set<string>();
+
+      combined.forEach((c) => {
+        const lower = c.email.toLowerCase();
+        if (!seen.has(lower)) {
+          seen.add(lower);
+          uniqueContacts.push(c);
+        }
+      });
+
+      setContactsList(uniqueContacts);
+    } catch {
+      setContactsList(extractContactsFromInbox(currentInboxMsgs || inboxMessages));
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const handleAuthorizeScope = async () => {
+    try {
+      await loginWithGoogle();
+      const freshToken = localStorage.getItem('google_token');
+      if (freshToken) {
+        setGmailToken(freshToken);
+        setGmailConnected(true);
+        if (folder === 'contacts') loadLiveContacts();
+        if (folder === 'inbox') loadLiveInboxMessages();
+      }
+    } catch (e: any) {
+      alert('Error durante la autorización: ' + e.message);
     }
   };
 
   const analyzeEmailContent = async (msg: GmailMessageItem) => {
     setAnalyzingMessageId(msg.id);
     try {
-      const prompt = `Analiza el siguiente correo electrónico y extrae los puntos clave y recomendaciones:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.snippet}`;
+      const prompt = `Analiza el siguiente correo recibido y genera un resumen ejecutivo con puntos clave y acciones recomendadas:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.snippet}`;
       const res = await api.engine.command(prompt);
       setAnalysisResults((prev) => ({
         ...prev,
@@ -156,8 +284,9 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       setEmailErrorMsg('Ingresa un correo destinatario.');
       return;
     }
-    if (!gmailToken) {
-      setEmailErrorMsg('Vincula tu cuenta de Gmail para enviar correos.');
+    const tokenToUse = gmailToken || localStorage.getItem('google_token');
+    if (!tokenToUse) {
+      setEmailErrorMsg('Vincula tu cuenta de Google para enviar correos.');
       return;
     }
 
@@ -167,7 +296,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
     try {
       const res = await api.gmail.sendReport({
-        accessToken: gmailToken,
+        accessToken: tokenToUse,
         to: emailTo.trim(),
         subject: emailSubject.trim() || 'Reporte de Estado - ForgeMind',
         content: emailContent,
@@ -195,6 +324,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       m.from?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const filteredContacts = contactsList.filter(
+    (c) =>
+      c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      c.email.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (!isOpen) return null;
 
   return (
@@ -206,21 +341,19 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
           exit={{ opacity: 0, scale: 0.96 }}
           className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-5xl h-[620px] flex overflow-hidden text-left"
         >
-          {/* Gmail-Style Left Sidebar */}
+          {/* Sidebar */}
           <div className="w-56 bg-slate-50 border-r border-slate-200/80 p-4 flex flex-col justify-between shrink-0 select-none">
             <div className="space-y-4">
-              {/* Logo / Brand Header */}
               <div className="flex items-center gap-2.5 px-1">
                 <div className="w-8 h-8 rounded-xl bg-red-500 text-white flex items-center justify-center font-bold shadow-xs">
                   <Mail size={18} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 leading-none">ForgeMail</h3>
-                  <span className="text-[10px] text-slate-500 font-medium">Estilo Gmail</span>
+                  <span className="text-[10px] text-slate-500 font-medium">Conectado a tu Gmail</span>
                 </div>
               </div>
 
-              {/* Compose Button */}
               <button
                 onClick={() => setFolder('compose')}
                 className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-2xl py-3 px-4 text-xs font-bold flex items-center gap-2.5 shadow-sm transition-all hover:shadow-md"
@@ -229,7 +362,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 <span>Redactar Reporte</span>
               </button>
 
-              {/* Navigation Menu */}
               <nav className="space-y-1">
                 <button
                   onClick={() => {
@@ -252,6 +384,23 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 </button>
 
                 <button
+                  onClick={() => setFolder('contacts')}
+                  className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                    folder === 'contacts'
+                      ? 'bg-red-500/10 text-red-600 font-bold'
+                      : 'text-slate-600 hover:bg-slate-200/50'
+                  }`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <Users size={16} />
+                    <span>Mis Contactos</span>
+                  </div>
+                  <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md">
+                    {contactsList.length}
+                  </span>
+                </button>
+
+                <button
                   onClick={() => setFolder('templates')}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     folder === 'templates'
@@ -259,25 +408,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       : 'text-slate-600 hover:bg-slate-200/50'
                   }`}
                 >
-                  <Tag size={16} />
-                  <span>Plantillas Reporte</span>
-                </button>
-
-                <button
-                  onClick={() => setFolder('sent')}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                    folder === 'sent'
-                      ? 'bg-red-500/10 text-red-600 font-bold'
-                      : 'text-slate-600 hover:bg-slate-200/50'
-                  }`}
-                >
-                  <Send size={16} />
-                  <span>Enviados</span>
+                  <FileText size={16} />
+                  <span>Plantillas IA</span>
                 </button>
               </nav>
             </div>
 
-            {/* Connection Banner */}
             <div className="pt-3 border-t border-slate-200/80 space-y-2">
               <div className="flex items-center gap-2 px-1">
                 <span className={`w-2 h-2 rounded-full ${gmailConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
@@ -285,20 +421,19 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   {gmailConnected ? gmailEmail : 'Sin vincular'}
                 </span>
               </div>
-              {!gmailConnected && (
-                <button
-                  onClick={connectGmail}
-                  className="w-full text-[11px] font-bold bg-slate-900 text-white hover:bg-slate-800 py-2 rounded-xl transition-all"
-                >
-                  Vincular Gmail
-                </button>
-              )}
+              <button
+                onClick={handleAuthorizeScope}
+                className="w-full text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
+              >
+                <Key size={12} className="text-amber-400" />
+                <span>Autorizar Permisos</span>
+              </button>
             </div>
           </div>
 
           {/* Main Area */}
           <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
-            {/* Top Search Bar & Actions */}
+            {/* Top Bar */}
             <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
               <div className="flex-1 max-w-md relative flex items-center">
                 <Search size={15} className="absolute left-3.5 text-slate-400" />
@@ -306,18 +441,21 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Buscar correos o reportes..."
+                  placeholder={folder === 'contacts' ? 'Buscar contactos...' : 'Buscar correos reales...'}
                   className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-9 pr-4 py-2 text-xs text-slate-900 outline-none transition-all"
                 />
               </div>
 
               <div className="flex items-center gap-2">
                 <button
-                  onClick={loadInboxMessages}
+                  onClick={() => {
+                    if (folder === 'inbox') loadLiveInboxMessages();
+                    if (folder === 'contacts') loadLiveContacts();
+                  }}
                   className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
-                  title="Actualizar lista"
+                  title="Actualizar datos reales"
                 >
-                  <RefreshCw size={15} className={loadingInbox ? 'animate-spin' : ''} />
+                  <RefreshCw size={15} className={loadingInbox || loadingContacts ? 'animate-spin' : ''} />
                 </button>
                 <button
                   onClick={onClose}
@@ -331,16 +469,25 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
             {/* Folder 1: INBOX */}
             {folder === 'inbox' && (
               <div className="flex-1 overflow-hidden flex">
-                {/* List View */}
                 <div className={`${selectedMessage ? 'w-1/2 border-r border-slate-100' : 'w-full'} flex flex-col h-full overflow-y-auto divide-y divide-slate-100`}>
                   {loadingInbox ? (
                     <div className="py-16 text-center text-xs text-slate-400 space-y-2">
                       <RefreshCw size={20} className="animate-spin text-red-500 mx-auto" />
-                      <p>Cargando mensajes de Gmail...</p>
+                      <p>Consultando mensajes en tu Gmail en tiempo real...</p>
                     </div>
                   ) : filteredMessages.length === 0 ? (
-                    <div className="py-16 text-center text-xs text-slate-400">
-                      No se encontraron mensajes en esta vista.
+                    <div className="py-16 text-center text-xs text-slate-400 space-y-3 px-6 max-w-sm mx-auto">
+                      <Inbox size={28} className="text-slate-300 mx-auto" />
+                      <p className="font-bold text-slate-800 text-sm">Sin correos cargados aún</p>
+                      <p className="text-[11px] text-slate-500 leading-relaxed">
+                        Es necesario presionar el botón de Autorizar Permisos para conceder acceso a tu bandeja de entrada de Gmail.
+                      </p>
+                      <button
+                        onClick={handleAuthorizeScope}
+                        className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
+                      >
+                        <Key size={14} /> Autorizar Acceso a Gmail
+                      </button>
                     </div>
                   ) : (
                     filteredMessages.map((msg) => {
@@ -370,7 +517,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   )}
                 </div>
 
-                {/* Detail View Pane */}
                 {selectedMessage && (
                   <div className="w-1/2 p-6 flex flex-col h-full overflow-y-auto space-y-4 bg-slate-50/50">
                     <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-200/80">
@@ -390,7 +536,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       {selectedMessage.snippet}
                     </div>
 
-                    {/* AI Analysis Box */}
                     {analysisResults[selectedMessage.id] ? (
                       <div className="p-4 bg-red-50/80 border border-red-200 rounded-2xl text-xs text-slate-800 space-y-1.5 shadow-2xs">
                         <div className="flex items-center gap-1.5 font-bold text-red-700">
@@ -416,7 +561,77 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
               </div>
             )}
 
-            {/* Folder 2: REDACTAR REPORTE */}
+            {/* Folder 2: CONTACTS */}
+            {folder === 'contacts' && (
+              <div className="flex-1 p-6 overflow-y-auto space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Users size={16} className="text-blue-600" />
+                    Mis Contactos Reales de Google
+                  </h3>
+                  <button
+                    onClick={handleAuthorizeScope}
+                    className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-bold"
+                  >
+                    <Key size={13} />
+                    <span>Autorizar Contactos</span>
+                  </button>
+                </div>
+
+                {loadingContacts ? (
+                  <div className="py-16 text-center text-xs text-slate-400 space-y-2">
+                    <RefreshCw size={20} className="animate-spin text-blue-600 mx-auto" />
+                    <p>Consultando tu lista de contactos en Google People API...</p>
+                  </div>
+                ) : filteredContacts.length === 0 ? (
+                  <div className="py-16 text-center text-xs text-slate-400 space-y-3 max-w-sm mx-auto">
+                    <Users size={28} className="text-slate-300 mx-auto" />
+                    <p className="font-bold text-slate-800 text-sm">Sin contactos sincronizados</p>
+                    <p className="text-[11px] text-slate-500 leading-relaxed">
+                      Presiona el botón de abajo para iniciar la autorización de permisos de contactos de tu cuenta de Google.
+                    </p>
+                    <button
+                      onClick={handleAuthorizeScope}
+                      className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
+                    >
+                      <Key size={14} /> Autorizar Permisos de Contactos
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-3">
+                    {filteredContacts.map((contact, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 transition-all"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-xs shrink-0">
+                            {contact.name?.charAt(0) || 'C'}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold text-slate-900 truncate">{contact.name}</p>
+                            <p className="text-[11px] text-slate-500 truncate">{contact.email}</p>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            setEmailTo(contact.email);
+                            setFolder('compose');
+                          }}
+                          className="p-2 rounded-xl bg-white hover:bg-blue-600 hover:text-white border border-slate-200 text-slate-600 text-xs font-semibold transition-all shrink-0 flex items-center gap-1"
+                          title="Enviar reporte a este contacto"
+                        >
+                          <span>Enviar</span>
+                          <ArrowRight size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Folder 3: REDACTAR REPORTE */}
             {folder === 'compose' && (
               <div className="flex-1 p-6 overflow-y-auto space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
@@ -424,7 +639,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     <Send size={16} className="text-red-500" />
                     Nuevo Reporte por Correo
                   </h3>
-                  <span className="text-xs text-slate-500 font-medium">Plantilla Inteligente</span>
+                  <span className="text-xs text-slate-500 font-medium">Generador Inteligente</span>
                 </div>
 
                 {emailSuccessMsg && (
@@ -441,7 +656,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   </div>
                 )}
 
-                {/* Report Type Selector */}
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
                     Tipo de Reporte:
@@ -546,7 +760,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
               </div>
             )}
 
-            {/* Folder 3: PLANTILLAS */}
+            {/* Folder 4: PLANTILLAS */}
             {folder === 'templates' && (
               <div className="flex-1 p-6 overflow-y-auto space-y-4">
                 <h3 className="text-sm font-bold text-slate-900">Plantillas de Reportes IA</h3>
@@ -575,14 +789,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     <p className="text-[11px] text-slate-500">Resumen de requerimientos y análisis técnico procesado.</p>
                   </div>
                 </div>
-              </div>
-            )}
-
-            {/* Folder 4: ENVIADOS */}
-            {folder === 'sent' && (
-              <div className="flex-1 p-6 text-center text-xs text-slate-400 space-y-2">
-                <Send size={24} className="text-slate-300 mx-auto" />
-                <p>Historial de reportes enviados guardado en tu cuenta de Gmail.</p>
               </div>
             )}
           </div>
