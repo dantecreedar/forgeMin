@@ -363,17 +363,18 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const generateAIReply = async (msg: GmailMessageItem) => {
     setGeneratingReplyId(msg.id);
     try {
-      const textToReply = cleanEmailText(msg.fullBody || msg.snippet || '');
-      const prompt = `Redacta una respuesta profesional de correo electrónico para el siguiente mensaje recibido:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido:\n${textToReply}`;
-      const res = await api.engine.command(prompt);
-
       let recipientEmail = msg.from || '';
       const match = recipientEmail.match(/<([^>]+)>/);
       if (match) recipientEmail = match[1];
 
+      const senderName = msg.from?.split('<')[0]?.replace(/"/g, '')?.trim() || 'Estimado/a';
+      const cleanSubject = (msg.subject || 'Actualización').replace(/^(Re:\s*)+/i, '');
+
+      const draftedReply = `Hola ${senderName},\n\nGracias por tu mensaje respecto a "${cleanSubject}".\n\nHe recibido la información enviada y nos encontramos procesando los puntos indicados para dar seguimiento a las tareas del equipo.\n\nQuedo a tu disposición ante cualquier consulta adicional.\n\nSaludos cordiales,\n${user?.displayName || 'Equipo ForgeMind'}`;
+
       setEmailTo(recipientEmail);
-      setEmailSubject(`Re: ${msg.subject || 'Respuesta'}`);
-      setEmailContent(res.message || 'Estimado/a, he recibido su mensaje y me encuentro revisándolo.');
+      setEmailSubject(`Re: ${cleanSubject}`);
+      setEmailContent(draftedReply);
       setReadingModalMsg(null);
       setFolder('compose');
     } catch {
@@ -1061,13 +1062,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     >
                       {analyzingMessageId === readingModalMsg.id ? (
                         <div className="flex items-center gap-2">
-                          <span>Analizando texto</span>
+                          <span>Analizando correo</span>
                           <DotsLoader className="text-white" />
                         </div>
                       ) : (
                         <>
                           <Sparkles size={14} className="text-amber-400" />
-                          <span>Analizar Texto con IA</span>
+                          <span>Analizar Correo</span>
                         </>
                       )}
                     </button>
