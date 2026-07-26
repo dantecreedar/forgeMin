@@ -6,9 +6,15 @@ import { Folder, Plus, X, Users, Search, ChevronDown, ChevronRight, ExternalLink
 import Link from 'next/link';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useProfileSettings } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
 
 export default function WorkspacesPage() {
   const { user } = useAuth();
+  const { settings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang].workspaces;
+
   const [workspaces, setWorkspaces] = useState<any[]>([]);
   const [projectsMap, setProjectsMap] = useState<Record<string, any[]>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
@@ -61,7 +67,6 @@ export default function WorkspacesPage() {
     api.workspaces.list(user.id).then((res) => {
       const wss = res.workspaces || [];
       setWorkspaces(wss);
-      // Automatically expand all workspaces so user sees projects right away
       const initialExpanded: Record<string, boolean> = {};
       wss.forEach((ws: any) => {
         initialExpanded[ws.id] = true;
@@ -121,8 +126,8 @@ export default function WorkspacesPage() {
       <div className="w-full max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Workspaces & Proyectos</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Organiza tus espacios de trabajo y proyectos</p>
+            <h1 className="text-xl font-semibold text-foreground">{t.title}</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{t.subtitle}</p>
           </div>
           <motion.button
             whileTap={{ scale: 0.98 }}
@@ -130,7 +135,7 @@ export default function WorkspacesPage() {
             className="bg-primary text-white px-4 py-2.5 rounded-xl text-xs font-medium flex items-center gap-2 shadow-sm"
           >
             <Plus size={16} />
-            Nuevo Workspace
+            {t.newWorkspace}
           </motion.button>
         </div>
 
@@ -139,7 +144,7 @@ export default function WorkspacesPage() {
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Buscar workspace..."
+            placeholder={t.searchPlaceholder}
             className="w-full bg-white border border-border rounded-xl pl-9 pr-4 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
           />
         </div>
@@ -153,7 +158,7 @@ export default function WorkspacesPage() {
             >
               <div className="bg-white border border-border rounded-2xl p-5 shadow-sm space-y-3">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm font-medium">Crear Workspace</h3>
+                  <h3 className="text-sm font-medium">{t.createWsTitle}</h3>
                   <button onClick={() => setShowCreateWs(false)} className="text-muted-foreground hover:text-foreground">
                     <X size={16} />
                   </button>
@@ -162,14 +167,14 @@ export default function WorkspacesPage() {
                   value={wsName}
                   onChange={(e) => setWsName(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && createWorkspace()}
-                  placeholder="Nombre del Workspace (ej. Mi Empresa)"
+                  placeholder={t.wsNamePlaceholder}
                   className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20"
                   autoFocus
                 />
                 <textarea
                   value={wsDescription}
                   onChange={(e) => setWsDescription(e.target.value)}
-                  placeholder="Descripción (opcional)"
+                  placeholder={t.wsDescPlaceholder}
                   className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none h-20"
                 />
                 <div className="flex gap-3 pt-1">
@@ -178,10 +183,10 @@ export default function WorkspacesPage() {
                     onClick={createWorkspace}
                     className="bg-primary text-white px-5 py-2 rounded-xl text-sm font-medium"
                   >
-                    Crear Workspace
+                    {t.createBtn}
                   </motion.button>
                   <button onClick={() => setShowCreateWs(false)} className="text-muted-foreground px-5 py-2 rounded-xl text-sm hover:bg-gray-50">
-                    Cancelar
+                    {t.cancel}
                   </button>
                 </div>
               </div>
@@ -208,15 +213,15 @@ export default function WorkspacesPage() {
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
               <Folder className="text-primary" size={28} />
             </div>
-            <h3 className="text-sm font-medium text-foreground mb-1">Sin Workspaces aún</h3>
-            <p className="text-xs text-muted-foreground mb-4">Crea tu primer espacio de trabajo para comenzar</p>
+            <h3 className="text-sm font-medium text-foreground mb-1">{t.noWorkspaces}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{t.noWorkspacesSub}</p>
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowCreateWs(true)}
               className="bg-primary text-white px-4 py-2 rounded-xl text-xs font-medium flex items-center gap-1.5 shadow-sm"
             >
               <Plus size={14} />
-              Crear Workspace
+              {t.createBtn}
             </motion.button>
           </motion.div>
         ) : (
@@ -224,6 +229,8 @@ export default function WorkspacesPage() {
             {filtered.map((ws, i) => {
               const wsProjects = projectsMap[ws.id] || [];
               const isExpanded = expanded[ws.id] ?? true;
+              const projCount = wsProjects.length;
+              const memberCount = ws.memberIds?.length || 1;
               return (
                 <motion.div
                   key={ws.id}
@@ -248,11 +255,15 @@ export default function WorkspacesPage() {
                       <div className="flex gap-4 pt-2 border-t border-gray-100">
                         <div className="flex items-center gap-1.5">
                           <Folder size={12} className="text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{wsProjects.length} proyecto{wsProjects.length !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {projCount} {projCount !== 1 ? t.projectsPlural : t.projects}
+                          </span>
                         </div>
                         <div className="flex items-center gap-1.5">
                           <Users size={12} className="text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{ws.memberIds?.length || 1} miembro{ws.memberIds?.length !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground">
+                            {memberCount} {memberCount !== 1 ? t.membersPlural : t.members}
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -266,7 +277,7 @@ export default function WorkspacesPage() {
                         className="bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium"
                       >
                         <FolderPlus size={14} className="text-primary" />
-                        Crear Proyecto
+                        {t.createProject}
                       </motion.button>
                       <button
                         onClick={(e) => {
@@ -274,7 +285,7 @@ export default function WorkspacesPage() {
                           setDeletingWsId(ws.id);
                         }}
                         className="text-slate-400 hover:text-red-600 p-1.5 rounded-lg hover:bg-red-50 transition-colors"
-                        title="Eliminar Workspace"
+                        title={t.deleteWsBtn}
                       >
                         <Trash2 size={16} />
                       </button>
@@ -294,7 +305,7 @@ export default function WorkspacesPage() {
                       >
                         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
                           <div className="flex items-center justify-between">
-                            <h4 className="text-xs font-semibold text-slate-800">Nuevo Proyecto en "{ws.name}"</h4>
+                            <h4 className="text-xs font-semibold text-slate-800">{t.newProjectIn} "{ws.name}"</h4>
                             <button onClick={() => setCreatingProjWsId(null)} className="text-muted-foreground hover:text-foreground">
                               <X size={14} />
                             </button>
@@ -303,14 +314,14 @@ export default function WorkspacesPage() {
                             value={projName}
                             onChange={(e) => setProjName(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && createProject(ws.id)}
-                            placeholder="Nombre del proyecto (ej. API Backend)"
+                            placeholder={t.projNamePlaceholder}
                             className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20"
                             autoFocus
                           />
                           <textarea
                             value={projDesc}
                             onChange={(e) => setProjDesc(e.target.value)}
-                            placeholder="Descripción del proyecto (opcional)"
+                            placeholder={t.projDescPlaceholder}
                             className="w-full bg-white border border-border rounded-xl px-3.5 py-2.5 text-xs outline-none focus:ring-2 focus:ring-primary/20 resize-none h-16"
                           />
                           <div className="flex gap-2 pt-1">
@@ -319,10 +330,10 @@ export default function WorkspacesPage() {
                               onClick={() => createProject(ws.id)}
                               className="bg-primary text-white px-4 py-1.5 rounded-lg text-xs font-medium"
                             >
-                              Guardar Proyecto
+                              {t.saveProject}
                             </motion.button>
                             <button onClick={() => setCreatingProjWsId(null)} className="text-muted-foreground px-4 py-1.5 rounded-lg text-xs hover:bg-gray-100">
-                              Cancelar
+                              {t.cancel}
                             </button>
                           </div>
                         </div>
@@ -340,12 +351,12 @@ export default function WorkspacesPage() {
                       >
                         {wsProjects.length === 0 ? (
                           <div className="px-5 py-6 flex flex-col items-center justify-center text-center">
-                            <p className="text-xs text-muted-foreground mb-2">Este workspace aún no tiene proyectos.</p>
+                            <p className="text-xs text-muted-foreground mb-2">{t.noProjects}</p>
                             <button
                               onClick={() => setCreatingProjWsId(ws.id)}
                               className="text-xs text-primary font-medium hover:underline inline-flex items-center gap-1"
                             >
-                              <Plus size={12} /> Crear el primer proyecto
+                              <Plus size={12} /> {t.createFirst}
                             </button>
                           </div>
                         ) : (
@@ -374,12 +385,12 @@ export default function WorkspacesPage() {
                                     href={`/projects/${proj.id}`}
                                     className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium hover:bg-slate-200"
                                   >
-                                    Ver proyecto
+                                    {t.viewProject}
                                   </Link>
                                   <button
                                     onClick={() => setDeletingProjId(proj.id)}
                                     className="text-slate-300 hover:text-red-600 p-1 transition-colors"
-                                    title="Eliminar proyecto"
+                                    title={t.deleteProjBtn}
                                   >
                                     <Trash2 size={14} />
                                   </button>
@@ -401,7 +412,7 @@ export default function WorkspacesPage() {
         )}
       </div>
 
-      {/* Confirmation Modal: Delete Workspace */}
+      {/* Delete Workspace Modal */}
       <AnimatePresence>
         {deletingWsId && (
           <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -416,27 +427,25 @@ export default function WorkspacesPage() {
                   <AlertCircle size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Eliminar Workspace</h3>
-                  <p className="text-xs text-slate-500">Esta acción no se puede deshacer</p>
+                  <h3 className="text-sm font-bold text-slate-900">{t.deleteWsTitle}</h3>
+                  <p className="text-xs text-slate-500">{t.deleteWsSub}</p>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 leading-relaxed">
-                ¿Estás seguro de que deseas eliminar este espacio de trabajo? Se removerán sus configuraciones y lista de proyectos.
-              </p>
+              <p className="text-xs text-slate-600 leading-relaxed">{t.deleteWsConfirm}</p>
 
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={() => deleteWorkspace(deletingWsId)}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
                 >
-                  <Trash2 size={14} /> Eliminar Workspace
+                  <Trash2 size={14} /> {t.deleteWsBtn}
                 </button>
                 <button
                   onClick={() => setDeletingWsId(null)}
                   className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
                 >
-                  Cancelar
+                  {t.cancel}
                 </button>
               </div>
             </motion.div>
@@ -444,7 +453,7 @@ export default function WorkspacesPage() {
         )}
       </AnimatePresence>
 
-      {/* Confirmation Modal: Delete Project from Workspace */}
+      {/* Delete Project Modal */}
       <AnimatePresence>
         {deletingProjId && (
           <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-xs flex items-center justify-center p-4">
@@ -459,14 +468,12 @@ export default function WorkspacesPage() {
                   <AlertCircle size={20} />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900">Eliminar Proyecto</h3>
-                  <p className="text-xs text-slate-500">Esta acción no se puede deshacer</p>
+                  <h3 className="text-sm font-bold text-slate-900">{t.deleteProjTitle}</h3>
+                  <p className="text-xs text-slate-500">{t.deleteProjSub}</p>
                 </div>
               </div>
 
-              <p className="text-xs text-slate-600 leading-relaxed">
-                ¿Estás seguro de que deseas eliminar este proyecto y todos sus objetivos y análisis?
-              </p>
+              <p className="text-xs text-slate-600 leading-relaxed">{t.deleteProjConfirm}</p>
 
               <div className="flex gap-2 pt-2">
                 <button
@@ -478,13 +485,13 @@ export default function WorkspacesPage() {
                   }}
                   className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded-xl text-xs font-bold transition-colors shadow-xs flex items-center justify-center gap-1.5"
                 >
-                  <Trash2 size={14} /> Eliminar Proyecto
+                  <Trash2 size={14} /> {t.deleteProjBtn}
                 </button>
                 <button
                   onClick={() => setDeletingProjId(null)}
                   className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-xl text-xs font-semibold"
                 >
-                  Cancelar
+                  {t.cancel}
                 </button>
               </div>
             </motion.div>

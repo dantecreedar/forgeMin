@@ -1,73 +1,21 @@
 'use client';
 
 import { useState } from 'react';
-import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
+import { useProfileSettings } from '@/lib/settings-context';
 import { motion } from 'framer-motion';
 import { Sparkles, Save, Check, RefreshCw, Type, Eye, Palette, Shield, Globe, Mail } from 'lucide-react';
-import { SendEmailDropdown } from '@/components/chat/send-email-dropdown';
-
-const themes: Array<{
-  id: MessageDesign;
-  name: string;
-  badge: string;
-  bgClass: string;
-  textClass: string;
-  borderClass: string;
-  accentClass: string;
-  description: string;
-}> = [
-  {
-    id: 'slate',
-    name: 'Sleek Slate (Predeterminado)',
-    badge: 'Profesional',
-    bgClass: 'bg-white',
-    textClass: 'text-slate-800',
-    borderClass: 'border-slate-200 shadow-xs',
-    accentClass: 'text-amber-500',
-    description: 'Estilo limpio, minimalista e ideal para lectura ejecutiva.',
-  },
-  {
-    id: 'classic',
-    name: 'Classic Dark',
-    badge: 'Oscuro Premium',
-    bgClass: 'bg-slate-900',
-    textClass: 'text-slate-100',
-    borderClass: 'border-slate-800 shadow-lg',
-    accentClass: 'text-sky-400',
-    description: 'Fondo oscuro de alta definición enfocado en código e informes.',
-  },
-  {
-    id: 'emerald',
-    name: 'Emerald Glass',
-    badge: 'Moderno',
-    bgClass: 'bg-emerald-950/90 backdrop-blur-md',
-    textClass: 'text-emerald-50',
-    borderClass: 'border-emerald-800/60 shadow-md',
-    accentClass: 'text-emerald-400',
-    description: 'Tonos esmeralda elegantes con acabado sutil y contraste alto.',
-  },
-  {
-    id: 'violet',
-    name: 'Violet Neon',
-    badge: 'Vibrante',
-    bgClass: 'bg-indigo-950',
-    textClass: 'text-indigo-100',
-    borderClass: 'border-indigo-800/80 shadow-indigo-900/30 shadow-lg',
-    accentClass: 'text-pink-400',
-    description: 'Estilo vanguardista con toques neón para máxima visibilidad.',
-  },
-];
+import { translations } from '@/lib/translations';
 
 export default function SettingsPage() {
   const { settings, updateSettings, resetSettings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang].settings;
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
   };
-
-  const activeTheme = themes.find((t) => t.id === settings.messageDesign) || themes[0];
 
   return (
     <div className="p-6 max-w-5xl mx-auto space-y-8">
@@ -89,39 +37,37 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Palette className="text-primary" size={22} />
-            Configuración de Marca de Agua, Idioma y Estilo
+            {t.title}
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">
-            Personaliza el idioma de respuesta de la IA, el sello sutil de marca de agua y los temas visuales de tu panel.
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">{t.subtitle}</p>
         </div>
         <button
           onClick={() => {
             resetSettings();
-            showToast('Valores restablecidos por defecto');
+            showToast(t.resetDone);
           }}
           className="flex items-center gap-1.5 px-3 py-2 text-xs text-muted-foreground hover:text-slate-900 bg-gray-100 hover:bg-gray-200 rounded-xl transition-all w-fit"
         >
           <RefreshCw size={14} />
-          <span>Restablecer</span>
+          <span>{t.reset}</span>
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Left Column: Form Settings */}
         <div className="lg:col-span-7 space-y-6">
-          {/* Section 1: Idioma / Language */}
+          {/* Section 1: Language */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
               <Globe size={18} className="text-primary" />
-              <h2 className="text-sm font-semibold text-slate-900">Idioma de Inteligencia y Respuestas (Language)</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{t.languageTitle}</h2>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <button
                 onClick={() => {
                   updateSettings({ language: 'es' });
-                  showToast('Idioma cambiado a Español');
+                  showToast(t.langChangedEs);
                 }}
                 className={`p-3.5 rounded-xl border text-left transition-all flex items-center justify-between ${
                   settings.language === 'es' || !settings.language
@@ -132,8 +78,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🇪🇸</span>
                   <div>
-                    <p className="text-xs font-semibold text-slate-900">Español</p>
-                    <p className="text-[10px] text-muted-foreground">Respuestas e IA en español</p>
+                    <p className="text-xs font-semibold text-slate-900">{t.spanish}</p>
+                    <p className="text-[10px] text-muted-foreground">{t.spanishSub}</p>
                   </div>
                 </div>
                 {(settings.language === 'es' || !settings.language) && <Check size={14} className="text-primary" />}
@@ -153,8 +99,8 @@ export default function SettingsPage() {
                 <div className="flex items-center gap-2.5">
                   <span className="text-base">🇺🇸</span>
                   <div>
-                    <p className="text-xs font-semibold text-slate-900">English</p>
-                    <p className="text-[10px] text-muted-foreground">Responses & AI in English</p>
+                    <p className="text-xs font-semibold text-slate-900">{t.english}</p>
+                    <p className="text-[10px] text-muted-foreground">{t.englishSub}</p>
                   </div>
                 </div>
                 {settings.language === 'en' && <Check size={14} className="text-primary" />}
@@ -162,24 +108,24 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          {/* Section 2: Marca de Agua */}
+          {/* Section 2: Watermark */}
           <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
             <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
               <Shield size={18} className="text-primary" />
-              <h2 className="text-sm font-semibold text-slate-900">Marca de Agua (Watermark)</h2>
+              <h2 className="text-sm font-semibold text-slate-900">{t.watermarkTitle}</h2>
             </div>
 
             <div className="flex items-center justify-between">
               <div>
-                <label className="text-xs font-semibold text-slate-800">Mostrar marca de agua</label>
-                <p className="text-[11px] text-muted-foreground">Muestra un sello sutil de autenticidad en los informes y mensajes.</p>
+                <label className="text-xs font-semibold text-slate-800">{t.showWatermark}</label>
+                <p className="text-[11px] text-muted-foreground">{t.showWatermarkSub}</p>
               </div>
               <input
                 type="checkbox"
                 checked={settings.showWatermark}
                 onChange={(e) => {
                   updateSettings({ showWatermark: e.target.checked });
-                  showToast('Marca de agua actualizada');
+                  showToast(t.watermarkUpdated);
                 }}
                 className="w-4 h-4 rounded text-primary focus:ring-primary/20 cursor-pointer"
               />
@@ -190,7 +136,7 @@ export default function SettingsPage() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-medium text-slate-700 flex items-center gap-1">
                     <Type size={14} />
-                    Texto de la marca de agua
+                    {t.watermarkText}
                   </label>
                   <input
                     type="text"
@@ -204,7 +150,7 @@ export default function SettingsPage() {
                 <div className="space-y-1.5">
                   <div className="flex justify-between items-center text-xs">
                     <span className="font-medium text-slate-700 flex items-center gap-1">
-                      <Eye size={14} /> Opacidad ({Math.round(settings.watermarkOpacity * 100)}%)
+                      <Eye size={14} /> {t.opacity} ({Math.round(settings.watermarkOpacity * 100)}%)
                     </span>
                   </div>
                   <input
@@ -222,15 +168,15 @@ export default function SettingsPage() {
           </div>
         </div>
 
-        {/* Right Column: Live Interactive Preview */}
+        {/* Right Column: Live Preview */}
         <div className="lg:col-span-5 space-y-4">
           <div className="sticky top-6">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles size={14} className="text-amber-500" /> Vista Previa en Tiempo Real
+                <Sparkles size={14} className="text-amber-500" /> {t.previewTitle}
               </span>
               <span className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
-                {settings.language === 'en' ? 'English AI Mode' : 'Modo IA Español'}
+                {t.previewBadge}
               </span>
             </div>
 
@@ -248,31 +194,23 @@ export default function SettingsPage() {
 
               {/* Clean Content */}
               <div className="space-y-3 text-xs leading-relaxed">
-                <p className="font-semibold text-sm text-slate-900">
-                  {settings.language === 'en' ? 'Technical Analysis Executive Summary' : 'Resumen de Análisis Técnico'}
-                </p>
-                <p>
-                  {settings.language === 'en'
-                    ? 'The AI system has evaluated the document and determined that the core architecture is robust and scalable.'
-                    : 'El sistema ha evaluado el documento y determinó que la infraestructura de seguridad es robusta y escalable.'}
-                </p>
+                <p className="font-semibold text-sm text-slate-900">{t.previewHeading}</p>
+                <p>{t.previewText}</p>
 
                 <div className="space-y-1">
-                  <p className="font-semibold text-slate-900">
-                    {settings.language === 'en' ? 'Key Identified Highlights:' : 'Puntos clave identificados:'}
-                  </p>
+                  <p className="font-semibold text-slate-900">{t.previewKeyPoints}</p>
                   <ul className="space-y-1 pl-1">
                     <li className="flex items-start gap-1.5">
                       <span className="text-amber-500">•</span>
-                      <span>{settings.language === 'en' ? 'Full integration with cloud services.' : 'Integración completa con servicios en la nube.'}</span>
+                      <span>{t.previewPoint1}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-amber-500">•</span>
-                      <span>{settings.language === 'en' ? 'Role-based access control segmentation.' : 'Segmentación de funciones por rol de usuario.'}</span>
+                      <span>{t.previewPoint2}</span>
                     </li>
                     <li className="flex items-start gap-1.5">
                       <span className="text-amber-500">•</span>
-                      <span>{settings.language === 'en' ? 'Streamlined workflow without noisy formatting.' : 'Optimización de flujos de trabajo sin ruido de formato.'}</span>
+                      <span>{t.previewPoint3}</span>
                     </li>
                   </ul>
                 </div>
@@ -282,18 +220,16 @@ export default function SettingsPage() {
               <div className="mt-4 flex items-center justify-start gap-2 pointer-events-none select-none opacity-85 cursor-default">
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-200/70 text-slate-700 border border-slate-300/60">
                   <Mail size={13} />
-                  <span>{settings.language === 'en' ? 'Send to Email' : 'Enviar a Email'}</span>
+                  <span>{translations[lang].dashboard.sendEmail}</span>
                 </div>
                 <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-200/70 text-slate-700 border border-slate-300/60">
                   <Save size={13} />
-                  <span>{settings.language === 'en' ? 'Save Response' : 'Guardar Respuesta'}</span>
+                  <span>{translations[lang].dashboard.saveResponse}</span>
                 </div>
               </div>
             </div>
 
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">
-              Así se visualizarán las respuestas en el panel de inteligencia y chat.
-            </p>
+            <p className="text-[11px] text-muted-foreground mt-2 text-center">{t.previewCaption}</p>
           </div>
         </div>
       </div>

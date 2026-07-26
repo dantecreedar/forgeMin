@@ -6,6 +6,8 @@ import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, S
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { DotsLoader } from '@/components/ui/dots-loader';
+import { useProfileSettings } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
 
 interface GlobalReportModalProps {
   isOpen: boolean;
@@ -30,6 +32,10 @@ interface GoogleContactItem {
 
 export function GlobalReportModal({ isOpen, onClose, defaultProjectName, defaultSummary }: GlobalReportModalProps) {
   const { loginWithGoogle, user } = useAuth();
+  const { settings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang].modal;
+
   const [folder, setFolder] = useState<'inbox' | 'compose' | 'contacts' | 'templates'>('inbox');
 
   // Dedicated Reader State (replaces content view cleanly)
@@ -100,22 +106,28 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
   useEffect(() => {
     if (reportType === 'project') {
-      setEmailSubject(`Reporte Ejecutivo: ${defaultProjectName || 'ForgeMind'}`);
+      setEmailSubject(`${lang === 'en' ? 'Executive Report:' : 'Reporte Ejecutivo:'} ${defaultProjectName || 'ForgeMind'}`);
       setEmailContent(
-        `Estado del Proyecto ${defaultProjectName || 'ForgeMind'}:\n\n${defaultSummary || 'El proyecto se encuentra actualizado y en desarrollo activo.'}\n\n- Fecha de emisión: ${new Date().toLocaleDateString()}`
+        lang === 'en'
+          ? `Project Status ${defaultProjectName || 'ForgeMind'}:\n\n${defaultSummary || 'The project is up to date and in active development.'}\n\n- Issue date: ${new Date().toLocaleDateString()}`
+          : `Estado del Proyecto ${defaultProjectName || 'ForgeMind'}:\n\n${defaultSummary || 'El proyecto se encuentra actualizado y en desarrollo activo.'}\n\n- Fecha de emisión: ${new Date().toLocaleDateString()}`
       );
     } else if (reportType === 'documents') {
-      setEmailSubject(`Reporte de Documentos y Especificaciones Técnicas`);
+      setEmailSubject(lang === 'en' ? 'Technical Specifications & Documents Report' : 'Reporte de Documentos y Especificaciones Técnicas');
       setEmailContent(
-        `Resumen de Análisis de Documentación Técnica:\n\n- Proyecto: ${defaultProjectName || 'ForgeMind'}\n- Estado: Documentación verificada e integrada.`
+        lang === 'en'
+          ? `Technical Documentation Analysis Summary:\n\n- Project: ${defaultProjectName || 'ForgeMind'}\n- Status: Documentation verified and integrated.`
+          : `Resumen de Análisis de Documentación Técnica:\n\n- Proyecto: ${defaultProjectName || 'ForgeMind'}\n- Estado: Documentación verificada e integrada.`
       );
     } else {
-      setEmailSubject(`Reporte de Estado Global de la Plataforma`);
+      setEmailSubject(lang === 'en' ? 'Global Platform Status Report' : 'Reporte de Estado Global de la Plataforma');
       setEmailContent(
-        `Estado Consolidado del Sistema ForgeMind:\n\n- Disponibilidad: 100%\n- Motor IA Gemini: Operativo`
+        lang === 'en'
+          ? `ForgeMind System Consolidated Status:\n\n- Availability: 100%\n- Gemini AI Engine: Operational`
+          : `Estado Consolidado del Sistema ForgeMind:\n\n- Disponibilidad: 100%\n- Motor IA Gemini: Operativo`
       );
     }
-  }, [reportType, defaultProjectName, defaultSummary]);
+  }, [reportType, defaultProjectName, defaultSummary, lang]);
 
   const cleanEmailText = (rawText: string): string => {
     if (!rawText) return '';
@@ -126,8 +138,8 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       .replace(/&quot;/g, '"')
       .replace(/&#39;/g, "'")
       .replace(/&nbsp;/g, ' ')
-      .replace(/’/g, "'")
-      .replace(/“|”/g, '"')
+      .replace(/'/g, "'")
+      .replace(/"|"/g, '"')
       .replace(/\r\n/g, '\n');
 
     const lines = cleaned.split('\n');
@@ -204,8 +216,8 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
             });
             const detail = await detailRes.json();
             const headers = detail.payload?.headers || [];
-            const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || 'Sin asunto';
-            const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Remitente';
+            const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || (lang === 'en' ? 'No subject' : 'Sin asunto');
+            const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || (lang === 'en' ? 'Sender' : 'Remitente');
             const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || '';
 
             const fullBody = getFullBodyFromPayload(detail.payload) || detail.snippet || '';
@@ -274,7 +286,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         if (connectionsRes.status === 'fulfilled' && connectionsRes.value.ok) {
           const data = await connectionsRes.value.json();
           (data.connections || []).forEach((p: any) => {
-            const name = p.names?.[0]?.displayName || 'Contacto';
+            const name = p.names?.[0]?.displayName || (lang === 'en' ? 'Contact' : 'Contacto');
             const email = p.emailAddresses?.[0]?.value;
             if (email) apiContacts.push({ name, email });
           });
@@ -283,7 +295,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         if (otherContactsRes.status === 'fulfilled' && otherContactsRes.value.ok) {
           const data = await otherContactsRes.value.json();
           (data.otherContacts || []).forEach((p: any) => {
-            const name = p.names?.[0]?.displayName || 'Contacto Frecuente';
+            const name = p.names?.[0]?.displayName || (lang === 'en' ? 'Frequent Contact' : 'Contacto Frecuente');
             const email = p.emailAddresses?.[0]?.value;
             if (email) apiContacts.push({ name, email });
           });
@@ -321,21 +333,25 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         if (folder === 'inbox') loadLiveInboxMessages();
       }
     } catch (e: any) {
-      alert('Error durante la autorización: ' + e.message);
+      alert(t.authorizeError + e.message);
     }
   };
 
   const analyzeEmailContent = async (msg: GmailMessageItem) => {
     setAnalyzingMessageId(msg.id);
     try {
-      const textToAnalyze = cleanEmailText(msg.fullBody || msg.snippet || 'Sin contenido de texto.');
-      const prompt = `Analiza detalladamente el texto del siguiente correo recibido y genera un resumen ejecutivo claro con sus puntos clave:\n\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido:\n${textToAnalyze}`;
+      const textToAnalyze = cleanEmailText(msg.fullBody || msg.snippet || (lang === 'en' ? 'No text content.' : 'Sin contenido de texto.'));
+      const prompt = lang === 'en'
+        ? `Analyze the following received email in detail and generate a clear executive summary with key points:\n\nFrom: ${msg.from}\nSubject: ${msg.subject}\nContent:\n${textToAnalyze}`
+        : `Analiza detalladamente el texto del siguiente correo recibido y genera un resumen ejecutivo claro con sus puntos clave:\n\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido:\n${textToAnalyze}`;
 
       const res = await api.engine.command(prompt);
       let summaryText = res?.message;
 
       if (!summaryText || summaryText.includes('No se encontraron proyectos') || res?.type === 'error') {
-        summaryText = `Resumen Ejecutivo del Correo:\n• De: ${msg.from}\n• Asunto: ${msg.subject}\n• Contenido clave: ${textToAnalyze.slice(0, 250)}...\n• Acción recomendada: Responder al remitente confirmando los puntos acordados.`;
+        summaryText = lang === 'en'
+          ? `Email Executive Summary:\n• From: ${msg.from}\n• Subject: ${msg.subject}\n• Key content: ${textToAnalyze.slice(0, 250)}...\n• Recommended action: Reply to sender confirming agreed points.`
+          : `Resumen Ejecutivo del Correo:\n• De: ${msg.from}\n• Asunto: ${msg.subject}\n• Contenido clave: ${textToAnalyze.slice(0, 250)}...\n• Acción recomendada: Responder al remitente confirmando los puntos acordados.`;
       }
 
       setAnalysisResults((prev) => ({
@@ -350,10 +366,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
         }
       }, 100);
     } catch {
-      const textToAnalyze = cleanEmailText(msg.fullBody || msg.snippet || 'Sin contenido de texto.');
+      const textToAnalyze = cleanEmailText(msg.fullBody || msg.snippet || '');
       setAnalysisResults((prev) => ({
         ...prev,
-        [msg.id]: `Resumen Ejecutivo del Correo:\n• De: ${msg.from}\n• Asunto: ${msg.subject}\n• Contenido clave: ${textToAnalyze.slice(0, 250)}...\n• Acción recomendada: Revisar y enviar respuesta sugerida.`,
+        [msg.id]: lang === 'en'
+          ? `Email Executive Summary:\n• From: ${msg.from}\n• Subject: ${msg.subject}\n• Key content: ${textToAnalyze.slice(0, 250)}...\n• Recommended action: Review and send suggested reply.`
+          : `Resumen Ejecutivo del Correo:\n• De: ${msg.from}\n• Asunto: ${msg.subject}\n• Contenido clave: ${textToAnalyze.slice(0, 250)}...\n• Acción recomendada: Revisar y enviar respuesta sugerida.`,
       }));
     } finally {
       setAnalyzingMessageId(null);
@@ -367,10 +385,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       const match = recipientEmail.match(/<([^>]+)>/);
       if (match) recipientEmail = match[1];
 
-      const senderName = msg.from?.split('<')[0]?.replace(/"/g, '')?.trim() || 'Estimado/a';
-      const cleanSubject = (msg.subject || 'Actualización').replace(/^(Re:\s*)+/i, '');
+      const senderName = msg.from?.split('<')[0]?.replace(/"/g, '')?.trim() || (lang === 'en' ? 'Dear' : 'Estimado/a');
+      const cleanSubject = (msg.subject || (lang === 'en' ? 'Update' : 'Actualización')).replace(/^(Re:\s*)+/i, '');
 
-      const draftedReply = `Hola ${senderName},\n\nGracias por tu mensaje respecto a "${cleanSubject}".\n\nHe recibido la información enviada y nos encontramos procesando los puntos indicados para dar seguimiento a las tareas del equipo.\n\nQuedo a tu disposición ante cualquier consulta adicional.\n\nSaludos cordiales,\n${user?.displayName || 'Equipo ForgeMind'}`;
+      const draftedReply = lang === 'en'
+        ? `Hello ${senderName},\n\nThank you for your message regarding "${cleanSubject}".\n\nI have received the information sent and we are processing the indicated points to follow up on the team's tasks.\n\nI remain at your disposal for any additional questions.\n\nBest regards,\n${user?.displayName || 'ForgeMind Team'}`
+        : `Hola ${senderName},\n\nGracias por tu mensaje respecto a "${cleanSubject}".\n\nHe recibido la información enviada y nos encontramos procesando los puntos indicados para dar seguimiento a las tareas del equipo.\n\nQuedo a tu disposición ante cualquier consulta adicional.\n\nSaludos cordiales,\n${user?.displayName || 'Equipo ForgeMind'}`;
 
       setEmailTo(recipientEmail);
       setEmailSubject(`Re: ${cleanSubject}`);
@@ -378,7 +398,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       setReadingModalMsg(null);
       setFolder('compose');
     } catch {
-      alert('Error al generar respuesta sugerida.');
+      alert(t.replyError);
     } finally {
       setGeneratingReplyId(null);
     }
@@ -393,12 +413,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
   const handleSendReportEmail = async () => {
     if (!emailTo.trim()) {
-      setEmailErrorMsg('Ingresa un correo destinatario.');
+      setEmailErrorMsg(t.noRecipient);
       return;
     }
     const tokenToUse = gmailToken || localStorage.getItem('google_token');
     if (!tokenToUse) {
-      setEmailErrorMsg('Vincula tu cuenta de Google para enviar correos.');
+      setEmailErrorMsg(t.noGmailLinked);
       return;
     }
 
@@ -410,20 +430,20 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       const res = await api.gmail.sendReport({
         accessToken: tokenToUse,
         to: emailTo.trim(),
-        subject: emailSubject.trim() || 'Reporte de Estado - ForgeMind',
+        subject: emailSubject.trim() || t.defaultSubject,
         content: emailContent,
         projectName: defaultProjectName || 'ForgeMind',
       });
 
       if (res.success) {
-        setEmailSuccessMsg('¡Correo enviado exitosamente mediante Gmail!');
+        setEmailSuccessMsg(t.emailSent);
         setTimeout(() => {
           setFolder('inbox');
           setEmailSuccessMsg(null);
         }, 1500);
       }
     } catch (err: any) {
-      setEmailErrorMsg(err.message || 'Error al enviar el correo.');
+      setEmailErrorMsg(err.message || t.sendError);
     } finally {
       setSendingEmail(false);
     }
@@ -463,6 +483,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       c.email.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const getDateFilterLabel = (f: string) => {
+    if (f === 'week') return t.lastWeek;
+    if (f === 'month') return t.lastMonth;
+    if (f === 'year') return t.thisYear;
+    return f;
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -483,7 +510,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 leading-none">ForgeMail</h3>
-                  <span className="text-[10px] text-slate-500 font-medium">Conectado a tu Gmail</span>
+                  <span className="text-[10px] text-slate-500 font-medium">{t.connectedTo}</span>
                 </div>
               </div>
 
@@ -492,7 +519,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 className="w-full bg-white hover:bg-slate-100 text-slate-800 border border-slate-200 rounded-2xl py-3 px-4 text-xs font-bold flex items-center gap-2.5 shadow-sm transition-all hover:shadow-md"
               >
                 <Plus size={18} className="text-red-500" />
-                <span>Redactar Reporte</span>
+                <span>{t.compose}</span>
               </button>
 
               <nav className="space-y-1">
@@ -509,7 +536,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 >
                   <div className="flex items-center gap-2.5">
                     <Inbox size={16} />
-                    <span>Recibidos</span>
+                    <span>{t.inbox}</span>
                   </div>
                   <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md">
                     {inboxMessages.length}
@@ -529,7 +556,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 >
                   <div className="flex items-center gap-2.5">
                     <Users size={16} />
-                    <span>Mis Contactos</span>
+                    <span>{t.myContacts}</span>
                   </div>
                   <span className="text-[10px] font-bold bg-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md">
                     {contactsList.length}
@@ -542,7 +569,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
               <div className="flex items-center gap-2 px-1">
                 <span className={`w-2 h-2 rounded-full ${gmailConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                 <span className="text-[11px] font-semibold text-slate-700 truncate">
-                  {gmailConnected ? gmailEmail : 'Sin vincular'}
+                  {gmailConnected ? gmailEmail : t.notLinked}
                 </span>
               </div>
             </div>
@@ -559,7 +586,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder={folder === 'contacts' ? 'Buscar contactos...' : 'Buscar correos reales...'}
+                    placeholder={folder === 'contacts' ? t.searchContacts : t.searchEmails}
                     className="w-full bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-9 pr-4 py-2 text-xs text-slate-900 outline-none transition-all"
                   />
                 </div>
@@ -574,7 +601,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                         onChange={(e) => setContactFilterEmail(e.target.value || null)}
                         className="bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-7 pr-3 py-2 text-xs text-slate-800 font-semibold outline-none transition-all cursor-pointer max-w-[150px] truncate"
                       >
-                        <option value="">Todos los contactos</option>
+                        <option value="">{t.allContacts}</option>
                         {contactsList.map((c, idx) => (
                           <option key={idx} value={c.email}>
                             {c.name} ({c.email})
@@ -591,10 +618,10 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                         onChange={(e: any) => setDateFilter(e.target.value)}
                         className="bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-7 pr-3 py-2 text-xs text-slate-800 font-semibold outline-none transition-all cursor-pointer"
                       >
-                        <option value="all">Todas las fechas</option>
-                        <option value="week">Última semana</option>
-                        <option value="month">Último mes</option>
-                        <option value="year">Este año</option>
+                        <option value="all">{t.allDates}</option>
+                        <option value="week">{t.lastWeek}</option>
+                        <option value="month">{t.lastMonth}</option>
+                        <option value="year">{t.thisYear}</option>
                       </select>
                     </div>
                   </div>
@@ -608,7 +635,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     if (folder === 'contacts') loadLiveContacts();
                   }}
                   className="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all"
-                  title="Actualizar datos reales"
+                  title={lang === 'en' ? 'Refresh real data' : 'Actualizar datos reales'}
                 >
                   <RefreshCw size={15} className={loadingInbox || loadingContacts ? 'animate-spin' : ''} />
                 </button>
@@ -624,11 +651,11 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
             {/* Active Filters Bar */}
             {(contactFilterEmail || dateFilter !== 'all') && folder === 'inbox' && (
               <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2 text-xs">
-                <span className="font-bold text-slate-600">Filtros activos:</span>
+                <span className="font-bold text-slate-600">{t.activeFilters}</span>
 
                 {contactFilterEmail && (
                   <span className="bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
-                    Contacto: {contactFilterEmail}
+                    {t.contactLabel} {contactFilterEmail}
                     <button onClick={() => setContactFilterEmail(null)} className="hover:text-red-900">
                       <X size={12} />
                     </button>
@@ -637,7 +664,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
                 {dateFilter !== 'all' && (
                   <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
-                    Fecha: {dateFilter === 'week' ? 'Última semana' : dateFilter === 'month' ? 'Último mes' : 'Este año'}
+                    {t.dateLabel} {getDateFilterLabel(dateFilter)}
                     <button onClick={() => setDateFilter('all')} className="hover:text-blue-900">
                       <X size={12} />
                     </button>
@@ -652,12 +679,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 {loadingInbox ? (
                   <div className="py-20 text-center text-xs text-slate-400 space-y-2">
                     <RefreshCw size={20} className="animate-spin text-red-500 mx-auto" />
-                    <p>Consultando mensajes en tu Gmail en tiempo real...</p>
+                    <p>{t.loadingInbox}</p>
                   </div>
                 ) : filteredMessages.length === 0 ? (
                   <div className="py-20 text-center text-xs text-slate-400 space-y-3 px-6 max-w-sm mx-auto">
                     <Inbox size={28} className="text-slate-300 mx-auto" />
-                    <p className="font-bold text-slate-800 text-sm">Sin correos para este filtro</p>
+                    <p className="font-bold text-slate-800 text-sm">{t.noEmails}</p>
                     <button
                       onClick={() => {
                         setContactFilterEmail(null);
@@ -665,7 +692,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       }}
                       className="text-xs text-blue-600 font-semibold hover:underline"
                     >
-                      Limpiar todos los filtros
+                      {t.clearFilters}
                     </button>
                   </div>
                 ) : (
@@ -706,7 +733,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                           className="px-3 py-1.5 bg-slate-100 hover:bg-red-500 hover:text-white rounded-xl text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 self-center"
                         >
                           <Eye size={13} />
-                          <span>Ver Mensaje</span>
+                          <span>{t.viewMessage}</span>
                         </button>
                       </div>
                     );
@@ -721,31 +748,31 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Users size={16} className="text-blue-600" />
-                    Mis Contactos Reales de Google ({contactsList.length})
+                    {t.myRealContacts} ({contactsList.length})
                   </h3>
                   <button
                     onClick={handleAuthorizeScope}
                     className="text-xs text-blue-600 hover:underline flex items-center gap-1 font-bold"
                   >
                     <Key size={13} />
-                    <span>Autorizar Contactos</span>
+                    <span>{t.authorizeContacts}</span>
                   </button>
                 </div>
 
                 {loadingContacts ? (
                   <div className="py-16 text-center text-xs text-slate-400 space-y-2">
                     <RefreshCw size={20} className="animate-spin text-blue-600 mx-auto" />
-                    <p>Consultando tu lista de contactos...</p>
+                    <p>{t.loadingContacts}</p>
                   </div>
                 ) : filteredContacts.length === 0 ? (
                   <div className="py-16 text-center text-xs text-slate-400 space-y-3 max-w-sm mx-auto">
                     <Users size={28} className="text-slate-300 mx-auto" />
-                    <p className="font-bold text-slate-800 text-sm">Sin contactos sincronizados</p>
+                    <p className="font-bold text-slate-800 text-sm">{t.noContacts}</p>
                     <button
                       onClick={handleAuthorizeScope}
                       className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2.5 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
                     >
-                      <Key size={14} /> Autorizar Permisos de Contactos
+                      <Key size={14} /> {t.authorizePermissions}
                     </button>
                   </div>
                 ) : (
@@ -772,10 +799,10 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                               setFolder('inbox');
                             }}
                             className="p-2 rounded-xl bg-white hover:bg-slate-900 hover:text-white border border-slate-200 text-slate-600 text-xs font-semibold transition-all flex items-center gap-1"
-                            title="Filtrar mensajes de este contacto"
+                            title={lang === 'en' ? 'Filter messages from this contact' : 'Filtrar mensajes de este contacto'}
                           >
                             <Filter size={12} />
-                            <span>Correos</span>
+                            <span>{t.contactEmails}</span>
                           </button>
 
                           <button
@@ -784,7 +811,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                               setFolder('compose');
                             }}
                             className="p-2 rounded-xl bg-white hover:bg-red-500 hover:text-white border border-slate-200 text-slate-600 text-xs font-semibold transition-all flex items-center gap-1"
-                            title="Redactar reporte a este contacto"
+                            title={lang === 'en' ? 'Compose report to this contact' : 'Redactar reporte a este contacto'}
                           >
                             <Send size={12} />
                           </button>
@@ -796,15 +823,15 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
               </div>
             )}
 
-            {/* Folder 3: REDACTAR REPORTE */}
+            {/* Folder 3: COMPOSE REPORT */}
             {folder === 'compose' && (
               <div className="flex-1 p-6 overflow-y-auto space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                   <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                     <Send size={16} className="text-red-500" />
-                    Nuevo Reporte / Respuesta por Correo
+                    {t.composeTitle}
                   </h3>
-                  <span className="text-xs text-slate-500 font-medium">Generador Inteligente</span>
+                  <span className="text-xs text-slate-500 font-medium">{t.intelligentGenerator}</span>
                 </div>
 
                 {emailSuccessMsg && (
@@ -823,7 +850,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider">
-                    Tipo de Reporte:
+                    {t.reportType}
                   </label>
                   <div className="grid grid-cols-3 gap-2">
                     <button
@@ -836,7 +863,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       }`}
                     >
                       <Target size={14} className={reportType === 'project' ? 'text-red-500' : 'text-slate-400'} />
-                      <span className="text-xs">Estado Proyecto</span>
+                      <span className="text-xs">{t.projectStatus}</span>
                     </button>
 
                     <button
@@ -849,7 +876,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       }`}
                     >
                       <FileText size={14} className={reportType === 'documents' ? 'text-purple-600' : 'text-slate-400'} />
-                      <span className="text-xs">Documentos</span>
+                      <span className="text-xs">{t.documents}</span>
                     </button>
 
                     <button
@@ -862,7 +889,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       }`}
                     >
                       <Sparkles size={14} className={reportType === 'app' ? 'text-emerald-600' : 'text-slate-400'} />
-                      <span className="text-xs">Estado App</span>
+                      <span className="text-xs">{t.appStatus}</span>
                     </button>
                   </div>
                 </div>
@@ -870,20 +897,20 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 <div className="space-y-3">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Para (Destinatario):
+                      {t.to}
                     </label>
                     <input
                       type="email"
                       value={emailTo}
                       onChange={(e) => setEmailTo(e.target.value)}
-                      placeholder="usuario@empresa.com"
+                      placeholder="user@company.com"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs outline-none focus:ring-2 focus:ring-red-500/20"
                     />
                   </div>
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Asunto:
+                      {t.subject}
                     </label>
                     <input
                       type="text"
@@ -895,7 +922,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1">
-                      Cuerpo del Mensaje:
+                      {t.body}
                     </label>
                     <textarea
                       rows={5}
@@ -911,7 +938,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     onClick={() => setFolder('inbox')}
                     className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
                   >
-                    Cancelar
+                    {t.cancel}
                   </button>
                   <button
                     onClick={handleSendReportEmail}
@@ -919,7 +946,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     className="bg-red-500 hover:bg-red-600 disabled:opacity-50 text-white px-5 py-2 rounded-xl text-xs font-bold flex items-center gap-2 shadow-xs transition-colors"
                   >
                     {sendingEmail ? <DotsLoader className="text-white" /> : <Send size={14} />}
-                    {sendingEmail ? 'Enviando...' : 'Enviar por Gmail'}
+                    {sendingEmail ? t.sending : t.sendViaGmail}
                   </button>
                 </div>
               </div>
@@ -941,7 +968,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-all"
                     >
                       <ArrowLeft size={16} />
-                      <span>Volver a Recibidos</span>
+                      <span>{t.backToInbox}</span>
                     </button>
 
                     <button
@@ -956,7 +983,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   <div className="border-b border-slate-100 pb-3 space-y-1">
                     <h3 className="text-base font-bold text-slate-900 leading-snug">{readingModalMsg.subject}</h3>
                     <div className="flex items-center justify-between text-xs text-slate-500">
-                      <p>De: <span className="font-semibold text-slate-800">{readingModalMsg.from}</span></p>
+                      <p>{t.from} <span className="font-semibold text-slate-800">{readingModalMsg.from}</span></p>
                       <span className="font-mono text-[11px] text-slate-400">{readingModalMsg.date}</span>
                     </div>
                   </div>
@@ -971,14 +998,14 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     <div className="bg-slate-100/70 p-3 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2">
                       <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold">
                         <Link2 size={14} className="text-purple-600" />
-                        <span>Vincular a Proyecto:</span>
+                        <span>{t.linkToProject}</span>
                       </div>
                       <select
                         value={linkedProjects[readingModalMsg.id] || ''}
                         onChange={(e) => handleLinkProject(readingModalMsg.id, e.target.value)}
                         className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-800 font-medium"
                       >
-                        <option value="">(Sin vincular)</option>
+                        <option value="">{t.noLink}</option>
                         <option value="ForgeMind Core">ForgeMind Core</option>
                         <option value="Escuelas Platform">Escuelas Platform</option>
                         <option value="Drive Sync Service">Drive Sync Service</option>
@@ -990,7 +1017,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                       <div className="p-4 bg-red-50/90 border border-red-200 rounded-2xl text-xs text-slate-800 space-y-1.5 shadow-2xs">
                         <div className="flex items-center gap-1.5 font-bold text-red-700">
                           <Sparkles size={14} />
-                          <span>Resumen Ejecutivo IA del Texto</span>
+                          <span>{t.aiSummaryTitle}</span>
                         </div>
                         <p className="whitespace-pre-line leading-relaxed text-slate-700">
                           {analysisResults[readingModalMsg.id]}
@@ -1008,13 +1035,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     >
                       {analyzingMessageId === readingModalMsg.id ? (
                         <div className="flex items-center gap-2">
-                          <span>Analizando correo</span>
+                          <span>{t.analyzing}</span>
                           <DotsLoader className="text-white" />
                         </div>
                       ) : (
                         <>
                           <Sparkles size={14} className="text-amber-400" />
-                          <span>Analizar Correo</span>
+                          <span>{t.analyzeEmail}</span>
                         </>
                       )}
                     </button>
@@ -1026,13 +1053,13 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     >
                       {generatingReplyId === readingModalMsg.id ? (
                         <div className="flex items-center gap-2">
-                          <span>Redactando</span>
+                          <span>{t.drafting}</span>
                           <DotsLoader className="text-white" />
                         </div>
                       ) : (
                         <>
                           <Reply size={14} />
-                          <span>Generar Respuesta Sugerida</span>
+                          <span>{t.generateReply}</span>
                         </>
                       )}
                     </button>

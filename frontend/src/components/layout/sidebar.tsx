@@ -463,14 +463,14 @@ export function Sidebar() {
               className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/10 shadow-2xs backdrop-blur-xs transition-all ${
                 collapsed ? 'justify-center px-0' : ''
               }`}
-              title={collapsed ? 'Enviar Correo' : undefined}
+              title={collapsed ? t.modal.sidebarTitle : undefined}
             >
               <div className="w-5 h-5 rounded-lg bg-white/15 flex items-center justify-center shrink-0">
                 <Mail size={13} className="text-white" />
               </div>
               {!collapsed && (
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="truncate">
-                  Correo
+                  {t.modal.sidebarLabel}
                 </motion.span>
               )}
             </motion.button>
@@ -488,7 +488,7 @@ export function Sidebar() {
                 className="absolute bottom-full left-2.5 right-2.5 mb-2 bg-slate-900 text-white rounded-2xl p-2 shadow-2xl border border-slate-800 space-y-1 z-50 text-xs"
               >
                 <div className="px-2 py-1.5 border-b border-slate-800 mb-1">
-                  <p className="font-semibold text-white truncate">{user?.displayName || 'Mi Perfil'}</p>
+                  <p className="font-semibold text-white truncate">{user?.displayName || t.profile.myProfile}</p>
                   <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
                 </div>
 
@@ -498,7 +498,7 @@ export function Sidebar() {
                   className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-slate-800 transition-all font-medium"
                 >
                   <Palette size={15} className="text-amber-400" />
-                  <span>Perfil y Diseño</span>
+                  <span>{t.profile.designSettings}</span>
                 </Link>
 
                 <button
@@ -509,7 +509,7 @@ export function Sidebar() {
                   className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-slate-800 transition-all font-medium text-left"
                 >
                   <ArrowLeftRight size={15} className="text-blue-400" />
-                  <span>Modo {isDevMode ? 'Gestión (Google)' : 'Dev (GitHub)'}</span>
+                  <span>{isDevMode ? t.profile.switchManagement : t.profile.switchDev}</span>
                 </button>
 
                 <div className="pt-1 border-t border-slate-800">
@@ -521,7 +521,7 @@ export function Sidebar() {
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all font-medium text-left"
                   >
                     <LogOut size={15} />
-                    <span>Cerrar sesión</span>
+                    <span>{t.profile.logout}</span>
                   </button>
                 </div>
               </motion.div>

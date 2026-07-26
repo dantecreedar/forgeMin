@@ -5,6 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Target, Plus, X, CheckCircle, Clock, AlertCircle, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
+import { useProfileSettings } from '@/lib/settings-context';
+import { translations } from '@/lib/translations';
 
 interface Objective {
   id: string;
@@ -21,16 +23,22 @@ interface Project {
   name: string;
 }
 
-const statusConfig: Record<string, { label: string; color: string; bg: string; icon: React.ReactNode }> = {
-  pending: { label: 'Pending', color: 'text-gray-600', bg: 'bg-gray-100', icon: <Clock size={12} /> },
-  in_progress: { label: 'In Progress', color: 'text-blue-600', bg: 'bg-blue-100', icon: <Target size={12} /> },
-  partial: { label: 'Partial', color: 'text-amber-600', bg: 'bg-amber-100', icon: <AlertCircle size={12} /> },
-  completed: { label: 'Completed', color: 'text-emerald-600', bg: 'bg-emerald-100', icon: <CheckCircle size={12} /> },
-  blocked: { label: 'Blocked', color: 'text-red-600', bg: 'bg-red-100', icon: <AlertCircle size={12} /> },
-};
+const getStatusConfig = (lang: 'es' | 'en') => ({
+  pending: { label: lang === 'en' ? 'Pending' : 'Pendiente', color: 'text-gray-600', bg: 'bg-gray-100', icon: <Clock size={12} /> },
+  in_progress: { label: lang === 'en' ? 'In Progress' : 'En Progreso', color: 'text-blue-600', bg: 'bg-blue-100', icon: <Target size={12} /> },
+  partial: { label: lang === 'en' ? 'Partial' : 'Parcial', color: 'text-amber-600', bg: 'bg-amber-100', icon: <AlertCircle size={12} /> },
+  completed: { label: lang === 'en' ? 'Completed' : 'Completado', color: 'text-emerald-600', bg: 'bg-emerald-100', icon: <CheckCircle size={12} /> },
+  blocked: { label: lang === 'en' ? 'Blocked' : 'Bloqueado', color: 'text-red-600', bg: 'bg-red-100', icon: <AlertCircle size={12} /> },
+});
 
 export default function ObjectivesPage() {
   const { user } = useAuth();
+  const { settings } = useProfileSettings();
+  const lang = settings.language || 'es';
+  const t = translations[lang].objectives;
+
+  const statusConfig = getStatusConfig(lang);
+
   const [objectives, setObjectives] = useState<Objective[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState('');
@@ -72,11 +80,11 @@ export default function ObjectivesPage() {
   const create = async () => {
     setCreateError(null);
     if (!selectedProject) {
-      setCreateError('Por favor selecciona un proyecto.');
+      setCreateError(t.errorNoProject);
       return;
     }
     if (!title.trim()) {
-      setCreateError('Por favor ingresa un título para el objetivo.');
+      setCreateError(t.errorNoTitle);
       return;
     }
     try {
@@ -89,10 +97,10 @@ export default function ObjectivesPage() {
       } else if (res.message) {
         setCreateError(res.message);
       } else {
-        setCreateError('No se pudo crear el objetivo. Inténtalo de nuevo.');
+        setCreateError(t.errorCreate);
       }
     } catch (err: any) {
-      setCreateError(err?.message || 'Error al conectar con el servidor.');
+      setCreateError(err?.message || (lang === 'en' ? 'Error connecting to server.' : 'Error al conectar con el servidor.'));
     }
   };
 
@@ -111,8 +119,8 @@ export default function ObjectivesPage() {
       <div className="w-full max-w-2xl">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Objectives</h1>
-            <p className="text-xs text-muted-foreground mt-0.5">Track your project goals</p>
+            <h1 className="text-xl font-semibold text-foreground">{t.title}</h1>
+            <p className="text-xs text-muted-foreground mt-0.5">{t.subtitle}</p>
           </div>
           <motion.button
             whileTap={{ scale: 0.98 }}
@@ -120,13 +128,13 @@ export default function ObjectivesPage() {
             className="bg-primary text-white px-4 py-2.5 rounded-xl text-sm font-medium flex items-center gap-2 shadow-sm"
           >
             <Plus size={16} />
-            New Objective
+            {t.newObjective}
           </motion.button>
         </div>
 
         <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1">
           {['all', ...Object.keys(statusConfig)].map((s) => {
-            const cfg = s !== 'all' ? statusConfig[s] : null;
+            const cfg = s !== 'all' ? statusConfig[s as keyof typeof statusConfig] : null;
             return (
               <motion.button
                 key={s}
@@ -136,7 +144,7 @@ export default function ObjectivesPage() {
                   filter === s ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground hover:bg-gray-100'
                 }`}
               >
-                {cfg ? <span className="flex items-center gap-1.5">{cfg.icon}{cfg.label}</span> : 'All'}
+                {cfg ? <span className="flex items-center gap-1.5">{cfg.icon}{cfg.label}</span> : (lang === 'en' ? 'All' : 'Todos')}
               </motion.button>
             );
           })}
@@ -152,7 +160,7 @@ export default function ObjectivesPage() {
             >
               <div className="bg-white border border-border rounded-2xl p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium">Create Objective</h3>
+                  <h3 className="text-sm font-medium">{t.createTitle}</h3>
                   <button onClick={() => setShowCreate(false)} className="text-muted-foreground hover:text-foreground">
                     <X size={16} />
                   </button>
@@ -168,27 +176,27 @@ export default function ObjectivesPage() {
                     onChange={(e) => setSelectedProject(e.target.value)}
                     className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 mb-3"
                   >
-                    <option value="">Select a project</option>
+                    <option value="">{t.selectProject}</option>
                     {projects.map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
                 )}
                 {projects.length === 0 && (
-                  <p className="text-xs text-muted-foreground mb-3">Create a workspace and project first via chat.</p>
+                  <p className="text-xs text-muted-foreground mb-3">{t.noProjectsMsg}</p>
                 )}
                 <input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && create()}
-                  placeholder="What do you want to achieve?"
+                  placeholder={t.titlePlaceholder}
                   className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 mb-3"
                   autoFocus
                 />
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Add more details..."
+                  placeholder={t.descPlaceholder}
                   className="w-full bg-gray-50 border border-border rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-primary/20 resize-none h-20 mb-4"
                 />
                 <div className="flex gap-3">
@@ -198,10 +206,10 @@ export default function ObjectivesPage() {
                     disabled={!selectedProject || projects.length === 0}
                     className="bg-primary text-white px-5 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
                   >
-                    Create
+                    {t.createBtn}
                   </motion.button>
                   <button onClick={() => setShowCreate(false)} className="text-muted-foreground px-5 py-2 rounded-xl text-sm hover:bg-gray-50">
-                    Cancel
+                    {t.cancel}
                   </button>
                 </div>
               </div>
@@ -233,21 +241,21 @@ export default function ObjectivesPage() {
             <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-4">
               <Target className="text-primary" size={28} />
             </div>
-            <h3 className="text-sm font-medium text-foreground mb-1">No objectives yet</h3>
-            <p className="text-xs text-muted-foreground mb-4">Set your first goal to start tracking progress</p>
+            <h3 className="text-sm font-medium text-foreground mb-1">{t.noObjectives}</h3>
+            <p className="text-xs text-muted-foreground mb-4">{t.noObjectivesSub}</p>
             <motion.button
               whileTap={{ scale: 0.98 }}
               onClick={() => setShowCreate(true)}
               className="text-primary text-sm font-medium flex items-center gap-1"
             >
               <Plus size={14} />
-              Create Objective
+              {t.newObjective}
             </motion.button>
           </motion.div>
         ) : (
           <div className="space-y-4">
             {filtered.map((obj, i) => {
-              const status = statusConfig[obj.status] || statusConfig.pending;
+              const status = statusConfig[obj.status as keyof typeof statusConfig] || statusConfig.pending;
               return (
                 <motion.div
                   key={obj.id}
@@ -287,16 +295,16 @@ export default function ObjectivesPage() {
                       animate={{ opacity: 1, y: 0 }}
                       className="mb-3 p-3 bg-red-50 border border-red-200 rounded-xl"
                     >
-                      <p className="text-xs text-red-700 mb-2">Delete this objective?</p>
+                      <p className="text-xs text-red-700 mb-2">{t.deleteConfirm}</p>
                       <div className="flex gap-2">
                         <motion.button
                           whileTap={{ scale: 0.97 }}
                           onClick={() => deleteObjective(obj.id)}
                           className="bg-red-600 text-white px-3 py-1.5 rounded-lg text-xs font-medium"
                         >
-                          Delete
+                          {t.deleteBtn}
                         </motion.button>
-                        <button onClick={() => setDeletingId(null)} className="text-red-600 px-3 py-1.5 rounded-lg text-xs hover:bg-red-100">Cancel</button>
+                        <button onClick={() => setDeletingId(null)} className="text-red-600 px-3 py-1.5 rounded-lg text-xs hover:bg-red-100">{t.cancel}</button>
                       </div>
                     </motion.div>
                   )}
