@@ -20,7 +20,6 @@ export class GmailController {
       const tokens = await this.gmailService.getTokens(code);
       const profile = await this.gmailService.getProfile(tokens.access_token);
 
-      // Redirect back to frontend with tokens & profile encoded in query
       const params = new URLSearchParams({
         gmail_status: 'success',
         access_token: tokens.access_token,
@@ -38,6 +37,15 @@ export class GmailController {
     const tokens = await this.gmailService.getTokens(code);
     const profile = await this.gmailService.getProfile(tokens.access_token);
     return { tokens, profile };
+  }
+
+  @Get('contacts')
+  async getContacts(@Query('accessToken') accessToken: string) {
+    if (!accessToken) {
+      return { contacts: [] };
+    }
+    const contacts = await this.gmailService.getContacts(accessToken);
+    return { contacts };
   }
 
   @Post('send-report')

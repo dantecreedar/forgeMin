@@ -106,7 +106,7 @@ export class GmailService {
     return { success: true, messageId: data.id };
   }
 
-  async listMessages(accessToken: string, maxResults = 8): Promise<Array<{ id: string; snippet: string; subject?: string; from?: string; date?: string }>> {
+  async listMessages(accessToken: string, maxResults = 12): Promise<Array<{ id: string; snippet: string; subject?: string; from?: string; date?: string }>> {
     const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -143,6 +143,59 @@ export class GmailService {
     );
 
     return detailedMessages.filter(Boolean) as any;
+  }
+
+  async getContacts(accessToken: string): Promise<Array<{ label: string; email: string }>> {
+    const contactsMap = new Map<string, { label: string; email: string }>();
+
+    // 1. Google People API Connections
+    try {
+      const res = await fetch(
+        'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses&pageSize=50',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (res.ok) {
+        const data = await res.json();
+        (data.connections || []).forEach((person: any) => {
+          const name = person.names?.[0]?.displayName || 'Contacto Gmail';
+          const email = person.emailAddresses?.[0]?.value;
+          if (email) contactsMap.set(email.toLowerCase(), { label: name, email });
+        });
+      }
+    } catch {}
+
+    // 2. Google People API Other Contacts
+    try {
+      const resOther = await fetch(
+        'https://people.googleapis.com/v1/otherContacts?readMask=names,emailAddresses&pageSize=50',
+        { headers: { Authorization: `Bearer ${accessToken}` } }
+      );
+      if (resOther.ok) {
+        const dataOther = await resOther.json();
+        (dataOther.otherContacts || []).forEach((person: any) => {
+          const name = person.names?.[0]?.displayName || person.emailAddresses?.[0]?.value?.split('@')[0] || 'Contacto';
+          const email = person.emailAddresses?.[0]?.value;
+          if (email) contactsMap.set(email.toLowerCase(), { label: name, email });
+        });
+      }
+    } catch {}
+
+    // 3. Extract real contacts from recent Gmail inbox message headers!
+    try {
+      const messages = await this.listMessages(accessToken, 15);
+      messages.forEach((msg) => {
+        if (msg.from) {
+          const match = msg.from.match(/^(.*?)\s*<([^>]+)>/) || [null, '', msg.from];
+          const name = match[1]?.trim().replace(/^"/, '').replace(/"$/, '') || match[2]?.split('@')[0] || 'Contacto Gmail';
+          const email = match[2]?.trim() || msg.from.trim();
+          if (email && email.includes('@')) {
+            contactsMap.set(email.toLowerCase(), { label: name || email, email });
+          }
+        }
+      });
+    } catch {}
+
+    return Array.from(contactsMap.values());
   }
 
   private encodeRawEmail(to: string, from: string, subject: string, bodyHtml: string): string {

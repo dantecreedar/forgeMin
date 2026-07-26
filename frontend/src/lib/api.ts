@@ -36,6 +36,8 @@ export const api = {
   },
   gmail: {
     getAuthUrl: () => fetch(`${API_BASE}/gmail/auth-url`, { headers: getHeaders() }).then(handleResponse),
+    getContacts: (accessToken: string) =>
+      fetch(`${API_BASE}/gmail/contacts?accessToken=${encodeURIComponent(accessToken)}`, { headers: getHeaders() }).then(handleResponse),
     sendReport: (
       arg1: string | { accessToken: string; to: string; subject: string; content: string; projectName?: string },
       to?: string,

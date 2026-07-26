@@ -90,55 +90,25 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
     const accessToken = localStorage.getItem('gmail_access_token') || localStorage.getItem('google_token');
     setHasGmailToken(Boolean(accessToken));
 
-    if (!accessToken) return;
-
-    setLoadingContacts(true);
-    try {
-      const resConnections = await fetch(
-        'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses&pageSize=30',
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      ).catch(() => null);
-
-      const resOther = await fetch(
-        'https://people.googleapis.com/v1/otherContacts?readMask=names,emailAddresses&pageSize=30',
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      ).catch(() => null);
-
-      const fetchedList: ContactItem[] = [];
-
-      if (resConnections && resConnections.ok) {
-        const data = await resConnections.json();
-        (data.connections || []).forEach((person: any) => {
-          const name = person.names?.[0]?.displayName || 'Contacto Gmail';
-          const email = person.emailAddresses?.[0]?.value;
-          if (email) fetchedList.push({ label: name, email });
-        });
+    if (accessToken) {
+      setLoadingContacts(true);
+      try {
+        const res = await api.gmail.getContacts(accessToken).catch(() => null);
+        if (res && Array.isArray(res.contacts) && res.contacts.length > 0) {
+          res.contacts.forEach((c: any) => {
+            if (c.email) map.set(c.email.toLowerCase(), c);
+          });
+          const combined = Array.from(map.values());
+          setContacts(combined);
+          localStorage.setItem(
+            'gmail_saved_contacts',
+            JSON.stringify(combined.filter((c) => c.email.toLowerCase() !== primaryProfileEmail.toLowerCase()))
+          );
+        }
+      } catch {
+      } finally {
+        setLoadingContacts(false);
       }
-
-      if (resOther && resOther.ok) {
-        const dataOther = await resOther.json();
-        (dataOther.otherContacts || []).forEach((person: any) => {
-          const name = person.names?.[0]?.displayName || person.emailAddresses?.[0]?.value?.split('@')[0] || 'Contacto';
-          const email = person.emailAddresses?.[0]?.value;
-          if (email) fetchedList.push({ label: name, email });
-        });
-      }
-
-      if (fetchedList.length > 0) {
-        fetchedList.forEach((c) => {
-          if (c.email) map.set(c.email.toLowerCase(), c);
-        });
-        const combined = Array.from(map.values());
-        setContacts(combined);
-        localStorage.setItem(
-          'gmail_saved_contacts',
-          JSON.stringify(combined.filter((c) => c.email.toLowerCase() !== primaryProfileEmail.toLowerCase()))
-        );
-      }
-    } catch {
-      // Retain stored list
-    } finally {
-      setLoadingContacts(false);
     }
   };
 
