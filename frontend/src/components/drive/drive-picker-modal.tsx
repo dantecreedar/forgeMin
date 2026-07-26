@@ -176,8 +176,43 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
     return <FileCode size={18} className="text-indigo-400" />;
   };
 
+  const isSupportedFormat = (mimeType: string, name: string) => {
+    if (mimeType === 'application/vnd.google-apps.folder') return false;
+    const lowerName = name.toLowerCase();
+    if (
+      mimeType.startsWith('image/') ||
+      mimeType.startsWith('audio/') ||
+      mimeType.startsWith('video/') ||
+      mimeType.includes('pdf') ||
+      mimeType.includes('document') ||
+      mimeType.includes('word') ||
+      mimeType.includes('spreadsheet') ||
+      mimeType.includes('sheet') ||
+      mimeType.includes('csv') ||
+      mimeType.includes('text') ||
+      mimeType.includes('json') ||
+      mimeType.includes('xml') ||
+      lowerName.endsWith('.docx') ||
+      lowerName.endsWith('.doc') ||
+      lowerName.endsWith('.pdf') ||
+      lowerName.endsWith('.xlsx') ||
+      lowerName.endsWith('.xls') ||
+      lowerName.endsWith('.txt') ||
+      lowerName.endsWith('.md') ||
+      lowerName.endsWith('.json') ||
+      lowerName.endsWith('.csv')
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   const getHumanMimeType = (mimeType: string, name: string) => {
     if (mimeType === 'application/vnd.google-apps.folder') return 'Carpeta';
+    if (!isSupportedFormat(mimeType, name)) {
+      const ext = name.includes('.') ? `.${name.split('.').pop()}` : '';
+      return `Formato no soportado (${ext || 'Archivo Binario'})`;
+    }
     if (mimeType.startsWith('image/')) return 'Imagen';
     if (mimeType.startsWith('audio/')) return 'Audio';
     if (mimeType.startsWith('video/')) return 'Video';
@@ -432,7 +467,22 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
                     </div>
 
                     <div className="flex-1 p-4 overflow-auto font-mono text-xs text-slate-300 select-text flex items-center justify-center">
-                      {readResult.metadata.mimeType.startsWith('image/') || readResult.content.startsWith('data:image/') ? (
+                      {!isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04') ? (
+                        <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-slate-950/80 border border-slate-800 rounded-2xl space-y-4">
+                          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                            <AlertCircle size={32} />
+                          </div>
+                          <div className="space-y-1.5 max-w-sm">
+                            <h4 className="text-sm font-bold text-white">Formato de archivo no soportado para lectura directa</h4>
+                            <p className="text-xs text-slate-400 leading-relaxed">
+                              El archivo <span className="font-semibold text-slate-200">{readResult.metadata.name}</span> tiene una estructura que no se puede previsualizar ni leer por este canal.
+                            </p>
+                          </div>
+                          <div className="text-[11px] bg-slate-900 text-slate-400 px-4 py-2 rounded-xl border border-slate-800/80 max-w-sm font-sans">
+                            Formatos soportados: <span className="text-slate-200 font-semibold">Documentos (Docs, Word, PDF, TXT), Hojas de cálculo (Excel, CSV), Imágenes, Audio y Video.</span>
+                          </div>
+                        </div>
+                      ) : readResult.metadata.mimeType.startsWith('image/') || readResult.content.startsWith('data:image/') ? (
                         <div className="flex items-center justify-center h-full w-full">
                           <img
                             src={readResult.content}
@@ -517,7 +567,8 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
                     {onExplainDocument && (
                       <button
                         onClick={handleExplainAction}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
+                        disabled={!isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04')}
+                        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
                       >
                         <HelpCircle size={15} /> Explicar con IA
                       </button>
@@ -525,8 +576,8 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
 
                     <button
                       onClick={handleConfirmImport}
-                      disabled={imported}
-                      className="bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
+                      disabled={imported || !isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04')}
+                      className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
                     >
                       {imported ? (
                         <>
