@@ -21,6 +21,20 @@ async function handleResponse(r: Response) {
 }
 
 export const api = {
+  drive: {
+    listFiles: (accessToken: string, folderId?: string) =>
+      fetch(`${API_BASE}/drive/list-files`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ accessToken, folderId }),
+      }).then(handleResponse),
+    readFile: (fileId: string, accessToken: string) =>
+      fetch(`${API_BASE}/drive/read-file`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify({ fileId, accessToken }),
+      }).then(handleResponse),
+  },
   engine: {
     command: (message: string) =>
       fetch(`${API_BASE}/engine/command`, {

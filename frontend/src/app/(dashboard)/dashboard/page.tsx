@@ -3,8 +3,9 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { ArrowUp, Sparkles, Folder, Target, FolderGit2 } from 'lucide-react';
+import { ArrowUp, Sparkles, Folder, Target, FolderGit2, HardDrive } from 'lucide-react';
 import { GraphCard } from '@/components/chat/graph-card';
+import { DrivePickerModal } from '@/components/drive/drive-picker-modal';
 
 import { DeerIcon } from '@/components/ui/deer-icon';
 
@@ -18,6 +19,7 @@ export default function DashboardPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showDriveModal, setShowDriveModal] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -61,10 +63,19 @@ export default function DashboardPage() {
     }
   };
 
+  const handleDriveImport = ({ name, content }: { name: string; content: string }) => {
+    const promptText = `Analiza el siguiente documento importado de Google Drive (${name}):\n\n${content}`;
+    send(promptText);
+  };
+
+  const handleExplainDocument = ({ name, content }: { name: string; content: string }) => {
+    const promptText = `Explica detalladamente el siguiente documento de Google Drive (${name}):\n\n${content}`;
+    send(promptText);
+  };
+
   const quickPrompts = [
     { label: '📊 Resumen Global con IA', query: 'analizar todo y dar un resumen global de los proyectos', icon: Sparkles },
     { label: 'Ver Proyectos', query: 'muestrame los proyectos', icon: Folder },
-    { label: 'Crear Proyecto', query: 'crea un proyecto llamado App Movil', icon: Sparkles },
     { label: 'Ver Objetivos', query: 'muestrame los objetivos', icon: Target },
   ];
 
@@ -119,6 +130,14 @@ export default function DashboardPage() {
                   autoFocus
                 />
                 <button
+                  type="button"
+                  onClick={() => setShowDriveModal(true)}
+                  className="p-2 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors mr-1 shrink-0"
+                  title="Importar documento de Google Drive"
+                >
+                  <HardDrive size={18} />
+                </button>
+                <button
                   onClick={() => send()}
                   disabled={loading || !input.trim()}
                   className="w-9 h-9 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-30 hover:bg-blue-600 transition-all shrink-0 shadow-xs"
@@ -130,6 +149,14 @@ export default function DashboardPage() {
 
               {/* Gemini Studio Prompt Pill Cards */}
               <div className="flex flex-wrap justify-center gap-2 pt-3">
+                <button
+                  type="button"
+                  onClick={() => setShowDriveModal(true)}
+                  className="flex items-center gap-2 text-xs bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 px-4 py-2 rounded-2xl transition-all shadow-2xs font-semibold"
+                >
+                  <HardDrive size={14} className="text-blue-600" />
+                  <span>📁 Leer Google Drive</span>
+                </button>
                 {quickPrompts.map((item) => {
                   const Icon = item.icon;
                   return (
@@ -211,6 +238,14 @@ export default function DashboardPage() {
                   className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none py-1.5 px-1"
                 />
                 <button
+                  type="button"
+                  onClick={() => setShowDriveModal(true)}
+                  className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-slate-100 rounded-full transition-colors shrink-0"
+                  title="Importar documento de Google Drive"
+                >
+                  <HardDrive size={18} />
+                </button>
+                <button
                   onClick={() => send()}
                   disabled={loading || !input.trim()}
                   className="w-8 h-8 rounded-full bg-slate-900 text-white flex items-center justify-center disabled:opacity-30 hover:bg-blue-600 transition-all shrink-0 shadow-xs"
@@ -222,6 +257,12 @@ export default function DashboardPage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      <DrivePickerModal
+        isOpen={showDriveModal}
+        onClose={() => setShowDriveModal(false)}
+        onImportSuccess={handleDriveImport}
+      />
     </div>
   );
 }

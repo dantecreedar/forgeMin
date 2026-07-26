@@ -95,9 +95,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loginWithGoogle = async () => {
     const provider = new GoogleAuthProvider();
+    provider.addScope('https://www.googleapis.com/auth/drive.readonly');
     localStorage.setItem('auth_provider', 'google');
     setAuthProvider('google');
-    await signInWithPopup(auth, provider);
+    const result = await signInWithPopup(auth, provider);
+    const credential = GoogleAuthProvider.credentialFromResult(result);
+    if (credential?.accessToken) {
+      localStorage.setItem('google_token', credential.accessToken);
+    }
   };
 
   const loginWithGithub = async () => {
@@ -116,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await signOut(auth);
     localStorage.removeItem('auth_token');
     localStorage.removeItem('github_token');
+    localStorage.removeItem('google_token');
     localStorage.removeItem('auth_provider');
     setUser(null);
     setToken(null);

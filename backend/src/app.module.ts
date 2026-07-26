@@ -68,6 +68,11 @@ import { FirestoreDocumentRepository } from './infrastructure/persistence/firest
 import { GmailService } from './infrastructure/gmail/gmail.service';
 import { GmailController } from './presentation/controllers/gmail.controller';
 
+import { GoogleDriveAdapter } from './infrastructure/google-drive/google-drive.adapter';
+import { ReadDriveFileUseCase } from './application/drive/read-drive-file.use-case';
+import { ListDriveFilesUseCase } from './application/drive/list-drive-files.use-case';
+import { DriveController } from './presentation/controllers/drive.controller';
+
 const firestoreProviders = [
   { provide: AUTH_REPOSITORY, useClass: FirestoreAuthRepository },
   { provide: WORKSPACE_REPOSITORY, useClass: FirestoreWorkspaceRepository },
@@ -81,6 +86,7 @@ const firestoreProviders = [
   { provide: NOTIFICATION_REPOSITORY, useClass: FirestoreNotificationRepository },
   { provide: KNOWLEDGE_REPOSITORY, useClass: FirestoreKnowledgeRepository },
   { provide: DOCUMENT_REPOSITORY, useClass: FirestoreDocumentRepository },
+  { provide: 'IDriveRepository', useClass: GoogleDriveAdapter },
 ];
 
 @Module({
@@ -99,6 +105,7 @@ const firestoreProviders = [
     EngineController,
     DocumentController,
     GmailController,
+    DriveController,
   ],
   providers: [
     AuthApplicationService,
@@ -122,6 +129,9 @@ const firestoreProviders = [
     GeminiService,
     LocalGitService,
     GmailService,
+    GoogleDriveAdapter,
+    ReadDriveFileUseCase,
+    ListDriveFilesUseCase,
     { provide: GITHUB_CLIENT, useClass: GitHubClientService },
     { provide: AUTH_SERVICE, useClass: FirebaseAuthService },
     ...firestoreProviders,
