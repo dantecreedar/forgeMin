@@ -13,11 +13,12 @@ export class DriveController {
   async listFiles(
     @Body('accessToken') accessToken: string,
     @Body('folderId') folderId?: string,
+    @Body('sharedWithMe') sharedWithMe?: boolean,
   ) {
     if (!accessToken) {
       throw new BadRequestException('Se requiere accessToken para listar archivos de Google Drive.');
     }
-    return await this.listDriveFilesUseCase.execute(accessToken, folderId);
+    return await this.listDriveFilesUseCase.execute(accessToken, folderId, sharedWithMe);
   }
 
   @Post('read-file')

@@ -6,10 +6,15 @@ export class GoogleDriveAdapter implements IDriveRepository {
   private readonly logger = new Logger(GoogleDriveAdapter.name);
   private readonly baseUrl = 'https://www.googleapis.com/drive/v3/files';
 
-  async listFiles(accessToken: string, folderId?: string): Promise<DriveFileMetadata[]> {
+  async listFiles(accessToken: string, folderId?: string, sharedWithMe?: boolean): Promise<DriveFileMetadata[]> {
     try {
-      const parentQuery = folderId ? `'${folderId}' in parents` : `'root' in parents`;
-      const q = `${parentQuery} and trashed = false`;
+      let q = '';
+      if (sharedWithMe) {
+        q = 'sharedWithMe = true and trashed = false';
+      } else {
+        const parentQuery = folderId ? `'${folderId}' in parents` : `'root' in parents`;
+        q = `${parentQuery} and trashed = false`;
+      }
       const fields = 'files(id,name,mimeType,size,webViewLink,iconLink,createdTime)';
       const url = `${this.baseUrl}?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&orderBy=folder,name`;
 

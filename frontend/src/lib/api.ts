@@ -22,11 +22,11 @@ async function handleResponse(r: Response) {
 
 export const api = {
   drive: {
-    listFiles: (accessToken: string, folderId?: string) =>
+    listFiles: (accessToken: string, folderId?: string, sharedWithMe?: boolean) =>
       fetch(`${API_BASE}/drive/list-files`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ accessToken, folderId }),
+        body: JSON.stringify({ accessToken, folderId, sharedWithMe }),
       }).then(handleResponse),
     readFile: (fileId: string, accessToken: string) =>
       fetch(`${API_BASE}/drive/read-file`, {

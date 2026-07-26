@@ -8,8 +8,8 @@ export class ListDriveFilesUseCase {
     private readonly driveRepository: IDriveRepository,
   ) {}
 
-  async execute(accessToken: string, folderId?: string): Promise<DriveFileMetadata[]> {
+  async execute(accessToken: string, folderId?: string, sharedWithMe?: boolean): Promise<DriveFileMetadata[]> {
     if (!accessToken) throw new Error('accessToken es requerido');
-    return await this.driveRepository.listFiles(accessToken, folderId);
+    return await this.driveRepository.listFiles(accessToken, folderId, sharedWithMe);
   }
 }

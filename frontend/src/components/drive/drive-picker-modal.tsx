@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, FileText, Download, Check, AlertCircle, Sparkles, HardDrive, Folder, ChevronRight, RefreshCw, FileCode, Table, ShieldCheck, HelpCircle, Eye, Image as ImageIcon, Music, Film } from 'lucide-react';
+import { X, FileText, Download, Check, AlertCircle, Sparkles, HardDrive, Folder, ChevronRight, RefreshCw, FileCode, Table, ShieldCheck, HelpCircle, Eye, Image as ImageIcon, Music, Film, Users } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 
@@ -30,6 +30,7 @@ interface FolderBreadcrumb {
 
 export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDocument }: DrivePickerModalProps) {
   const { loginWithGoogle } = useAuth();
+  const [viewMode, setViewMode] = useState<'my_drive' | 'shared_with_me'>('my_drive');
   const [folderStack, setFolderStack] = useState<FolderBreadcrumb[]>([{ id: 'root', name: 'Mi Unidad' }]);
   const [files, setFiles] = useState<DriveItem[]>([]);
   const [loadingList, setLoadingList] = useState(false);
@@ -45,11 +46,11 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
 
   useEffect(() => {
     if (isOpen) {
-      fetchFolderContents(currentFolder.id);
+      fetchFolderContents(currentFolder.id, viewMode === 'shared_with_me');
     }
-  }, [isOpen, folderStack]);
+  }, [isOpen, folderStack, viewMode]);
 
-  const fetchFolderContents = async (folderId: string) => {
+  const fetchFolderContents = async (folderId: string, isShared: boolean = viewMode === 'shared_with_me') => {
     setLoadingList(true);
     setListError(null);
 
@@ -67,16 +68,16 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
     const tokenToUse = googleToken || localStorage.getItem('auth_token') || '';
 
     try {
-      const items = await api.drive.listFiles(tokenToUse, folderId === 'root' ? undefined : folderId);
+      const items = await api.drive.listFiles(tokenToUse, folderId === 'root' ? undefined : folderId, isShared);
       setFiles(items || []);
     } catch (err: any) {
       try {
         await loginWithGoogle();
         const freshToken = localStorage.getItem('google_token') || '';
-        const items = await api.drive.listFiles(freshToken, folderId === 'root' ? undefined : folderId);
+        const items = await api.drive.listFiles(freshToken, folderId === 'root' ? undefined : folderId, isShared);
         setFiles(items || []);
       } catch (retryErr: any) {
-        setListError('Inicia sesión en tu cuenta de Google para cargar las carpetas.');
+        setListError('Inicia sesión en tu cuenta de Google para cargar los archivos.');
       }
     } finally {
       setLoadingList(false);
@@ -261,6 +262,34 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
           <div className="flex-1 flex overflow-hidden divide-x divide-slate-800/80">
             {/* Left Column: File Explorer (40% width) */}
             <div className="w-2/5 p-4 flex flex-col overflow-y-auto space-y-3 bg-slate-950/30">
+              {/* Section Tabs: Mi Unidad vs Compartidos conmigo */}
+              <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs font-semibold gap-1 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('my_drive');
+                    setFolderStack([{ id: 'root', name: 'Mi Unidad' }]);
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    viewMode === 'my_drive' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Folder size={13} /> Mi Unidad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setViewMode('shared_with_me');
+                    setFolderStack([{ id: 'root', name: 'Compartidos' }]);
+                  }}
+                  className={`flex-1 py-1.5 px-3 rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    viewMode === 'shared_with_me' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Users size={13} /> Compartidos
+                </button>
+              </div>
+
               {/* Breadcrumbs Navigation */}
               <div className="flex items-center gap-1 text-xs text-slate-400 bg-slate-950 border border-slate-800/80 rounded-xl px-3 py-2 overflow-x-auto shrink-0">
                 {folderStack.map((folder, idx) => (
