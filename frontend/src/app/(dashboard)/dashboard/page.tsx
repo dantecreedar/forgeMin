@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { ArrowUp, Sparkles, Folder, Target, FolderGit2, HardDrive } from 'lucide-react';
+import { ArrowUp, Sparkles, Folder, Target, FolderGit2, HardDrive, FileText } from 'lucide-react';
 import { GraphCard } from '@/components/chat/graph-card';
 import { DrivePickerModal } from '@/components/drive/drive-picker-modal';
 
@@ -13,6 +13,10 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   payload?: any;
+  fileAttachment?: {
+    name: string;
+    isExplain?: boolean;
+  };
 }
 
 export default function DashboardPage() {
@@ -39,11 +43,14 @@ export default function DashboardPage() {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const send = async (textToSend?: string) => {
+  const send = async (
+    textToSend?: string,
+    fileAttachment?: { name: string; isExplain?: boolean }
+  ) => {
     const text = (textToSend || input).trim();
     if (!text || loading) return;
     setInput('');
-    setMessages((prev) => [...prev, { role: 'user', content: text }]);
+    setMessages((prev) => [...prev, { role: 'user', content: text, fileAttachment }]);
     setLoading(true);
 
     try {
@@ -52,7 +59,7 @@ export default function DashboardPage() {
         ...prev,
         {
           role: 'assistant',
-          content: res.message || 'Operación completada',
+          content: res.message || 'Análisis completado',
           payload: res,
         },
       ]);
@@ -65,12 +72,12 @@ export default function DashboardPage() {
 
   const handleDriveImport = ({ name, content }: { name: string; content: string }) => {
     const promptText = `Analiza el siguiente documento importado de Google Drive (${name}):\n\n${content}`;
-    send(promptText);
+    send(promptText, { name, isExplain: false });
   };
 
   const handleExplainDocument = ({ name, content }: { name: string; content: string }) => {
     const promptText = `Explica detalladamente el siguiente documento de Google Drive (${name}):\n\n${content}`;
-    send(promptText);
+    send(promptText, { name, isExplain: true });
   };
 
   const quickPrompts = [
@@ -78,7 +85,6 @@ export default function DashboardPage() {
     { label: 'Ver Proyectos', query: 'muestrame los proyectos', icon: Folder },
     { label: 'Ver Objetivos', query: 'muestrame los objetivos', icon: Target },
   ];
-
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f8fafd]">
@@ -191,15 +197,31 @@ export default function DashboardPage() {
                     className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     <div className="max-w-[85%]">
-                      <div
-                        className={`px-4 py-3 text-sm leading-relaxed rounded-2xl ${
-                          msg.role === 'user'
-                            ? 'bg-blue-600 text-white shadow-xs rounded-br-none font-medium'
-                            : 'bg-white text-slate-800 border border-slate-200/90 shadow-2xs rounded-bl-none'
-                        }`}
-                      >
-                        {msg.content}
-                      </div>
+                      {msg.fileAttachment ? (
+                        <div className="bg-slate-900 border border-slate-800 text-white rounded-2xl p-4 shadow-md space-y-2 min-w-[280px]">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-400 shrink-0">
+                              <FileText size={20} />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-bold text-xs truncate text-white">{msg.fileAttachment.name}</p>
+                              <span className="text-[10px] bg-blue-500/20 text-blue-300 font-semibold px-2 py-0.5 rounded-md inline-block mt-0.5 border border-blue-500/30">
+                                {msg.fileAttachment.isExplain ? '💡 Explicación con IA' : '📄 Documento de Contexto'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div
+                          className={`px-4 py-3 text-sm leading-relaxed rounded-2xl ${
+                            msg.role === 'user'
+                              ? 'bg-blue-600 text-white shadow-xs rounded-br-none font-medium'
+                              : 'bg-white text-slate-800 border border-slate-200/90 shadow-2xs rounded-bl-none whitespace-pre-wrap'
+                          }`}
+                        >
+                          {msg.content}
+                        </div>
+                      )}
 
                       {/* Render Graph Node Cards */}
                       {msg.payload && (

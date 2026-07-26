@@ -6,17 +6,22 @@ export class GoogleDriveAdapter implements IDriveRepository {
   private readonly logger = new Logger(GoogleDriveAdapter.name);
   private readonly baseUrl = 'https://www.googleapis.com/drive/v3/files';
 
-  async listFiles(accessToken: string, folderId?: string, sharedWithMe?: boolean): Promise<DriveFileMetadata[]> {
+  async listFiles(accessToken: string, folderId?: string, sharedWithMe?: boolean, recents?: boolean): Promise<DriveFileMetadata[]> {
     try {
       let q = '';
-      if (sharedWithMe) {
+      let orderBy = 'folder,name';
+
+      if (recents) {
+        q = 'trashed = false';
+        orderBy = 'recency desc';
+      } else if (sharedWithMe) {
         q = 'sharedWithMe = true and trashed = false';
       } else {
         const parentQuery = folderId ? `'${folderId}' in parents` : `'root' in parents`;
         q = `${parentQuery} and trashed = false`;
       }
       const fields = 'files(id,name,mimeType,size,webViewLink,iconLink,createdTime)';
-      const url = `${this.baseUrl}?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&orderBy=folder,name`;
+      const url = `${this.baseUrl}?q=${encodeURIComponent(q)}&fields=${encodeURIComponent(fields)}&orderBy=${encodeURIComponent(orderBy)}`;
 
       const response = await fetch(url, {
         headers: {

@@ -16,6 +16,25 @@ export class EngineService {
   ) {}
 
   async process(userId: string, message: string) {
+    const lower = message.toLowerCase();
+    if (
+      lower.includes('analiza el siguiente documento') ||
+      lower.includes('explica detalladamente el siguiente documento') ||
+      lower.includes('documento importado de google drive')
+    ) {
+      const result = await this.gemini.chat([
+        {
+          role: 'system',
+          content: `Eres el Director de Inteligencia de ForgeMind. Analiza exhaustivamente el documento proporcionado por el usuario y genera un análisis técnico, estructurado y detallado en español utilizando formato Markdown. Organízalo con titulares, puntos clave, resumen ejecutivo e implicaciones operativas.`,
+        },
+        { role: 'user', content: message },
+      ]);
+      return {
+        type: 'document_analysis',
+        message: result.reply,
+      };
+    }
+
     const parsed = await this.parseIntent(userId, message);
     return this.execute(userId, parsed);
   }

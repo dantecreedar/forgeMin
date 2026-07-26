@@ -14,7 +14,7 @@ export interface DriveFileContent {
 }
 
 export interface IDriveRepository {
-  listFiles(accessToken: string, folderId?: string, sharedWithMe?: boolean): Promise<DriveFileMetadata[]>;
+  listFiles(accessToken: string, folderId?: string, sharedWithMe?: boolean, recents?: boolean): Promise<DriveFileMetadata[]>;
   getFileMetadata(fileId: string, accessToken: string): Promise<DriveFileMetadata>;
   getFileContent(fileId: string, accessToken: string): Promise<DriveFileContent>;
 }
