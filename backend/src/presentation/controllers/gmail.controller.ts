@@ -71,4 +71,13 @@ export class GmailController {
     const result = await this.gmailService.sendEmail(accessToken, to, subject || `Reporte de Avances: ${projectName || 'ForgeMind'}`, htmlBody);
     return result;
   }
+
+  @Get('messages')
+  async listMessages(@Query('accessToken') accessToken: string) {
+    if (!accessToken) {
+      throw new Error('Token de Gmail requerido.');
+    }
+    const messages = await this.gmailService.listMessages(accessToken);
+    return { messages };
+  }
 }

@@ -144,7 +144,7 @@ export function Sidebar() {
               </div>
               {!collapsed && (
                 <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="truncate">
-                  Enviar Reportes
+                  Correo
                 </motion.span>
               )}
             </motion.button>

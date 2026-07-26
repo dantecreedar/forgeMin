@@ -129,6 +129,8 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify(payload),
       }).then(handleResponse),
+    getMessages: (accessToken: string) =>
+      fetch(`${API_BASE}/gmail/messages?accessToken=${encodeURIComponent(accessToken)}`, { headers: getHeaders() }).then(handleResponse),
   },
 };
 

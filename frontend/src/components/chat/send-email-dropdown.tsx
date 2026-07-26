@@ -1,8 +1,13 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Mail, Send, Check, X, User } from 'lucide-react';
+import { Mail, Send, Check, X, User, RefreshCw, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+
+interface ContactItem {
+  label: string;
+  email: string;
+}
 
 interface SendEmailDropdownProps {
   defaultEmail: string;
@@ -13,6 +18,8 @@ interface SendEmailDropdownProps {
 export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDropdownProps) {
   const [open, setOpen] = useState(false);
   const [emailInput, setEmailInput] = useState(defaultEmail);
+  const [contacts, setContacts] = useState<ContactItem[]>([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,23 +34,77 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
     }
     if (open) {
       document.addEventListener('mousedown', handleClickOutside);
+      fetchGoogleContacts();
     }
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [open]);
 
+  const fetchGoogleContacts = async () => {
+    const googleToken = localStorage.getItem('google_token');
+    if (!googleToken) {
+      setDefaultSuggestions();
+      return;
+    }
+
+    setLoadingContacts(true);
+    try {
+      const response = await fetch(
+        'https://people.googleapis.com/v1/people/me/connections?personFields=names,emailAddresses&pageSize=10',
+        {
+          headers: {
+            Authorization: `Bearer ${googleToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Contacts fetch failed');
+      }
+
+      const data = await response.json();
+      const connections = data.connections || [];
+
+      const fetchedList: ContactItem[] = connections
+        .map((person: any) => {
+          const name = person.names?.[0]?.displayName || 'Contacto';
+          const email = person.emailAddresses?.[0]?.value;
+          if (email) {
+            return { label: name, email };
+          }
+          return null;
+        })
+        .filter(Boolean);
+
+      if (fetchedList.length > 0) {
+        setContacts([
+          { label: 'Mi correo (Perfil)', email: defaultEmail },
+          ...fetchedList,
+        ]);
+      } else {
+        setDefaultSuggestions();
+      }
+    } catch {
+      setDefaultSuggestions();
+    } finally {
+      setLoadingContacts(false);
+    }
+  };
+
+  const setDefaultSuggestions = () => {
+    setContacts([
+      { label: 'Mi correo (Perfil)', email: defaultEmail },
+      { label: 'Equipo de Desarrollo', email: 'dev-team@forgemind.app' },
+      { label: 'Administración', email: 'admin@forgemind.app' },
+    ]);
+  };
+
   const handleConfirmSend = (targetEmail: string) => {
     if (!targetEmail.trim()) return;
     onSend(targetEmail.trim());
     setOpen(false);
   };
-
-  const quickRecipients = [
-    { label: 'Mi correo (Perfil)', email: defaultEmail },
-    { label: 'Equipo de Desarrollo', email: 'dev-team@forgemind.app' },
-    { label: 'Administración', email: 'admin@forgemind.app' },
-  ];
 
   return (
     <div className="relative inline-block" ref={dropdownRef}>
@@ -68,7 +129,7 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
             initial={{ opacity: 0, scale: 0.95, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -6 }}
-            className="absolute bottom-full right-0 mb-2 w-72 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-800 p-3.5 z-50 text-xs"
+            className="absolute bottom-full right-0 mb-2 w-76 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-800 p-3.5 z-50 text-xs"
           >
             {/* Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 mb-3">
@@ -108,29 +169,39 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
               </div>
             </div>
 
-            {/* Quick Suggestions */}
+            {/* Google Contacts / Suggestions */}
             <div className="space-y-1 pt-2 border-t border-slate-800">
-              <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold mb-1">
-                Sugerencias rápidas
-              </p>
-              {quickRecipients.map((item) => (
-                <button
-                  key={item.email}
-                  onClick={() => {
-                    setEmailInput(item.email);
-                    handleConfirmSend(item.email);
-                  }}
-                  className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 text-left transition-all group"
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <User size={12} className="text-slate-400 group-hover:text-blue-400 shrink-0" />
-                    <span className="text-slate-300 font-medium truncate">{item.label}</span>
-                  </div>
-                  <span className="text-[10px] text-slate-400 font-mono truncate max-w-[100px]">
-                    {item.email}
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">
+                  Contactos de Gmail
+                </p>
+                {loadingContacts && (
+                  <span className="text-[10px] text-blue-400 flex items-center gap-1">
+                    <RefreshCw size={10} className="animate-spin" /> Cargando...
                   </span>
-                </button>
-              ))}
+                )}
+              </div>
+
+              <div className="max-h-40 overflow-y-auto space-y-1 pr-1">
+                {contacts.map((item) => (
+                  <button
+                    key={item.email}
+                    onClick={() => {
+                      setEmailInput(item.email);
+                      handleConfirmSend(item.email);
+                    }}
+                    className="w-full flex items-center justify-between p-2 rounded-xl hover:bg-slate-800 text-left transition-all group"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <User size={12} className="text-slate-400 group-hover:text-blue-400 shrink-0" />
+                      <span className="text-slate-300 font-medium truncate">{item.label}</span>
+                    </div>
+                    <span className="text-[10px] text-slate-400 font-mono truncate max-w-[110px]">
+                      {item.email}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </motion.div>
         )}

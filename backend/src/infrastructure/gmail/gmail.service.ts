@@ -36,7 +36,7 @@ export class GmailService {
       client_id: this.clientId,
       redirect_uri: this.redirectUri,
       response_type: 'code',
-      scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+      scope: 'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/contacts.readonly https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
       access_type: 'offline',
       prompt: 'consent',
     });
@@ -104,6 +104,45 @@ export class GmailService {
     }
 
     return { success: true, messageId: data.id };
+  }
+
+  async listMessages(accessToken: string, maxResults = 8): Promise<Array<{ id: string; snippet: string; subject?: string; from?: string; date?: string }>> {
+    const listRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=${maxResults}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    const listData = await listRes.json();
+    if (!listRes.ok) {
+      throw new Error(listData.error?.message || 'Error al obtener mensajes de Gmail');
+    }
+
+    const messages = listData.messages || [];
+    const detailedMessages = await Promise.all(
+      messages.map(async (msgItem: { id: string }) => {
+        try {
+          const detailRes = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${msgItem.id}?format=full`, {
+            headers: { Authorization: `Bearer ${accessToken}` },
+          });
+          const detail = await detailRes.json();
+          const headers = detail.payload?.headers || [];
+          const subject = headers.find((h: any) => h.name.toLowerCase() === 'subject')?.value || 'Sin asunto';
+          const from = headers.find((h: any) => h.name.toLowerCase() === 'from')?.value || 'Remitente desconocido';
+          const date = headers.find((h: any) => h.name.toLowerCase() === 'date')?.value || '';
+
+          return {
+            id: msgItem.id,
+            snippet: detail.snippet || '',
+            subject,
+            from,
+            date,
+          };
+        } catch {
+          return null;
+        }
+      })
+    );
+
+    return detailedMessages.filter(Boolean) as any;
   }
 
   private encodeRawEmail(to: string, from: string, subject: string, bodyHtml: string): string {
