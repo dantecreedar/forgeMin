@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import i18n from './i18n';
 
 export type MessageDesign = 'slate' | 'classic' | 'emerald' | 'violet';
 export type LanguageOption = 'es' | 'en';
@@ -63,7 +64,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     try {
       const saved = localStorage.getItem('forgemind_profile_settings');
       if (saved) {
-        setSettings({ ...defaultSettings, ...JSON.parse(saved) });
+        const parsed = JSON.parse(saved);
+        setSettings({ ...defaultSettings, ...parsed });
+        if (parsed.language) {
+          i18n.changeLanguage(parsed.language);
+        }
       }
     } catch (e) {
       console.error('Error loading settings', e);
@@ -81,6 +86,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('forgemind_profile_settings', JSON.stringify(updated));
       if (newSettings.language) {
         localStorage.setItem('forgemind_language', newSettings.language);
+        i18n.changeLanguage(newSettings.language);
       }
       return updated;
     });
@@ -90,6 +96,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     setSettings(defaultSettings);
     localStorage.setItem('forgemind_profile_settings', JSON.stringify(defaultSettings));
     localStorage.setItem('forgemind_language', 'es');
+    i18n.changeLanguage('es');
   };
 
   const saveResponse = (title: string, content: string) => {
