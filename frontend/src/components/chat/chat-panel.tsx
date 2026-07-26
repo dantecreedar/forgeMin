@@ -241,17 +241,17 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
           return (
             <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[92%] px-4 py-3 rounded-2xl text-xs leading-relaxed relative transition-all ${
+                className={`max-w-[92%] relative transition-all ${
                   isUser
-                    ? 'bg-primary text-white rounded-br-none shadow-xs'
-                    : `${activeTheme.bg} ${activeTheme.text} ${activeTheme.border} rounded-bl-none`
+                    ? 'bg-slate-200/90 text-slate-900 px-4 py-3 rounded-3xl rounded-br-xs shadow-2xs font-medium text-xs'
+                    : 'bg-transparent text-slate-800 py-1 text-xs leading-relaxed'
                 }`}
               >
                 {/* Watermark Overlay for Assistant Messages */}
                 {!isUser && settings.showWatermark && (
                   <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                     <div
-                      className="w-full h-full flex items-center justify-center select-none font-bold text-[10px] tracking-widest uppercase transform -rotate-12"
+                      className="w-full h-full flex items-center justify-center select-none font-bold text-[10px] tracking-widest uppercase transform -rotate-12 text-slate-400"
                       style={{ opacity: settings.watermarkOpacity }}
                     >
                       {settings.watermarkText}
@@ -262,14 +262,14 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
                 <p className="whitespace-pre-line relative z-10">{cleanText}</p>
 
                 {msg.payload && (
-                  <div className="relative z-10">
+                  <div className="relative z-10 mt-2">
                     <GraphCard payload={msg.payload} onNavigate={() => setOpen(false)} />
                   </div>
                 )}
 
                 {/* Assistant Message Actions: Enviar a Email & Guardar Respuesta */}
                 {!isUser && (
-                  <div className="mt-3 pt-2 border-t border-current/15 flex items-center justify-end gap-2 relative z-10">
+                  <div className="mt-2.5 flex items-center justify-start gap-2 relative z-10">
                     <SendEmailDropdown
                       defaultEmail={settings.userEmail}
                       isSent={isEmailed}
@@ -277,12 +277,12 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
                     />
                     <button
                       onClick={() => handleSaveResponse(msg.id)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all ${
+                      className={`flex items-center gap-1 px-2.5 py-1 rounded-xl text-[10px] font-medium transition-all ${
                         isSaved
-                          ? 'bg-primary/20 text-primary'
-                          : 'bg-current/10 hover:bg-current/20'
+                          ? 'bg-blue-600 text-white shadow-xs'
+                          : 'bg-slate-200/70 hover:bg-slate-200 text-slate-700'
                       }`}
-                      title="Guardar respuesta en la biblioteca"
+                      title="Guardar respuesta"
                     >
                       {isSaved ? <Check size={11} /> : <Save size={11} />}
                       <span>{isSaved ? 'Guardada' : 'Guardar Respuesta'}</span>
