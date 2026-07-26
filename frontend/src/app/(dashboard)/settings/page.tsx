@@ -224,45 +224,37 @@ export default function SettingsPage() {
             </div>
 
             {/* Preview Box */}
-            <div className={`p-4 rounded-2xl border relative overflow-hidden transition-all ${activeTheme.bgClass} ${activeTheme.textClass} ${activeTheme.borderClass}`}>
+            <div className="p-4 rounded-2xl relative overflow-hidden transition-all bg-transparent text-slate-800">
               {/* Watermark Overlay */}
               {settings.showWatermark && (
                 <div
-                  className="absolute inset-0 flex items-center justify-center pointer-events-none select-none font-bold text-sm tracking-widest uppercase transform -rotate-12"
+                  className="absolute inset-0 flex items-center justify-center pointer-events-none select-none font-bold text-sm tracking-widest uppercase transform -rotate-12 text-slate-400"
                   style={{ opacity: settings.watermarkOpacity }}
                 >
                   {settings.watermarkText}
                 </div>
               )}
 
-              {/* Message Header */}
-              <div className="flex items-center gap-2 mb-3 pb-2 border-b border-current/10">
-                <div className="w-5 h-5 rounded-full bg-amber-400/20 flex items-center justify-center">
-                  <Sparkles size={12} className={activeTheme.accentClass} />
-                </div>
-                <span className="text-xs font-semibold">ForgeMind Assistant</span>
-              </div>
-
               {/* Clean Content */}
               <div className="space-y-3 text-xs leading-relaxed">
-                <p className="font-semibold text-sm">Resumen de Análisis Técnico</p>
+                <p className="font-semibold text-sm text-slate-900">Resumen de Análisis Técnico</p>
                 <p>
                   El sistema ha evaluado el documento y determinó que la infraestructura de seguridad es robusta y escalable.
                 </p>
 
                 <div className="space-y-1">
-                  <p className="font-semibold">Puntos clave identificados:</p>
+                  <p className="font-semibold text-slate-900">Puntos clave identificados:</p>
                   <ul className="space-y-1 pl-1">
                     <li className="flex items-start gap-1.5">
-                      <span className={activeTheme.accentClass}>•</span>
+                      <span className="text-amber-500">•</span>
                       <span>Integración completa con servicios en la nube.</span>
                     </li>
                     <li className="flex items-start gap-1.5">
-                      <span className={activeTheme.accentClass}>•</span>
+                      <span className="text-amber-500">•</span>
                       <span>Segmentación de funciones por rol de usuario.</span>
                     </li>
                     <li className="flex items-start gap-1.5">
-                      <span className={activeTheme.accentClass}>•</span>
+                      <span className="text-amber-500">•</span>
                       <span>Optimización de flujos de trabajo sin ruido de formato.</span>
                     </li>
                   </ul>
@@ -270,14 +262,14 @@ export default function SettingsPage() {
               </div>
 
               {/* Action Buttons inside Response */}
-              <div className="mt-4 pt-3 border-t border-current/10 flex items-center gap-2">
+              <div className="mt-4 flex items-center justify-start gap-2">
                 <SendEmailDropdown
                   defaultEmail="usuario@empresa.com"
                   onSend={(targetEmail) => showToast(`Respuesta enviada a ${targetEmail}`)}
                 />
                 <button
-                  onClick={() => showToast('Respuesta guardada en la sección Respuestas Guardadas')}
-                  className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-current/10 hover:bg-current/20 transition-all"
+                  onClick={() => showToast('Respuesta guardada en la sección Guardados')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-200/70 hover:bg-slate-200 text-slate-700 transition-all"
                 >
                   <Save size={12} />
                   <span>Guardar Respuesta</span>

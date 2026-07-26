@@ -9,7 +9,6 @@ function getHeaders(): HeadersInit {
   return headers;
 }
 
-
 async function handleResponse(r: Response) {
   if (r.status === 204) return { success: true };
   const text = await r.text();
@@ -34,6 +33,29 @@ export const api = {
         headers: getHeaders(),
         body: JSON.stringify({ fileId, accessToken }),
       }).then(handleResponse),
+  },
+  gmail: {
+    getAuthUrl: () => fetch(`${API_BASE}/gmail/auth-url`, { headers: getHeaders() }).then(handleResponse),
+    sendReport: (
+      arg1: string | { accessToken: string; to: string; subject: string; content: string; projectName?: string },
+      to?: string,
+      subject?: string,
+      content?: string,
+      projectName?: string
+    ) => {
+      const bodyPayload =
+        typeof arg1 === 'object'
+          ? arg1
+          : { accessToken: arg1, to, subject, content, projectName };
+
+      return fetch(`${API_BASE}/gmail/send-report`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(bodyPayload),
+      }).then(handleResponse);
+    },
+    getMessages: (accessToken: string) =>
+      fetch(`${API_BASE}/gmail/messages?accessToken=${encodeURIComponent(accessToken)}`, { headers: getHeaders() }).then(handleResponse),
   },
   engine: {
     command: (message: string) =>
@@ -71,43 +93,58 @@ export const api = {
       fetch(`${API_BASE}/projects/${id}`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify(data) }).then(handleResponse),
     delete: (id: string) =>
       fetch(`${API_BASE}/projects/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
-    analyze: (id: string) =>
-      fetch(`${API_BASE}/projects/${id}/analyze`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
-    getReadmeSummary: (id: string) =>
-      fetch(`${API_BASE}/projects/${id}/readme`, { headers: getHeaders() }).then(handleResponse),
-    getGitActivity: (id: string) =>
-      fetch(`${API_BASE}/projects/${id}/git-activity`, { headers: getHeaders() }).then(handleResponse),
+    analyzeRepo: (projectId: string, repoUrl: string) =>
+      fetch(`${API_BASE}/projects/${projectId}/analyze-repo`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ repoUrl }) }).then(handleResponse),
+    syncRepo: (projectId: string) =>
+      fetch(`${API_BASE}/projects/${projectId}/sync-repo`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
     getStatusSummary: (id: string) =>
       fetch(`${API_BASE}/projects/${id}/status-summary`, { headers: getHeaders() }).then(handleResponse),
+    getGitActivity: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/git-activity`, { headers: getHeaders() }).then(handleResponse),
+    getReadmeSummary: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/readme-summary`, { headers: getHeaders() }).then(handleResponse),
+    analyze: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/analyze`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
   },
-
-
   objectives: {
-    listByUser: (userId: string) => fetch(`${API_BASE}/objectives/user/${userId}`, { headers: getHeaders() }).then(handleResponse),
-    list: (projectId: string) => fetch(`${API_BASE}/objectives/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
-    get: (id: string) => fetch(`${API_BASE}/objectives/${id}`, { headers: getHeaders() }).then(handleResponse),
+    list: (projectId: string) =>
+      fetch(`${API_BASE}/objectives/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
+    listByProject: (projectId: string) =>
+      fetch(`${API_BASE}/objectives/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
+    listByUser: (userId: string) =>
+      fetch(`${API_BASE}/objectives/user/${userId}`, { headers: getHeaders() }).then(handleResponse),
     create: (projectId: string, title: string, description?: string, tags?: string[]) =>
       fetch(`${API_BASE}/objectives`, { method: 'POST', headers: getHeaders(), body: JSON.stringify({ projectId, title, description, tags }) }).then(handleResponse),
+    updateStatus: (id: string, status: string) =>
+      fetch(`${API_BASE}/objectives/${id}/status`, { method: 'PATCH', headers: getHeaders(), body: JSON.stringify({ status }) }).then(handleResponse),
     delete: (id: string) =>
       fetch(`${API_BASE}/objectives/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
   repositories: {
-    listGitHub: (username?: string, visibility: string = 'all') => {
-      const params = new URLSearchParams();
-      if (username) params.append('username', username);
-      if (visibility) params.append('visibility', visibility);
-      const query = params.toString();
-      return fetch(`${API_BASE}/repositories/github${query ? `?${query}` : ''}`, { headers: getHeaders() }).then(handleResponse);
-    },
-
     listByProject: (projectId: string) =>
       fetch(`${API_BASE}/repositories/project/${projectId}`, { headers: getHeaders() }).then(handleResponse),
-    connect: (projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]) =>
-      fetch(`${API_BASE}/repositories/connect`, {
+    listGitHub: (username?: string, visibility?: string) =>
+      fetch(`${API_BASE}/repositories/github?username=${encodeURIComponent(username || '')}&visibility=${encodeURIComponent(visibility || 'all')}`, { headers: getHeaders() }).then(handleResponse),
+    connect: (
+      arg1: string | { projectId: string; githubRepoUrl?: string; owner?: string; repoName?: string; defaultBranch?: string; branches?: string[] },
+      githubRepoUrl?: string,
+      name?: string,
+      defaultBranch?: string,
+      branches?: string[]
+    ) => {
+      const bodyPayload =
+        typeof arg1 === 'object'
+          ? arg1
+          : { projectId: arg1, githubRepoUrl, name, defaultBranch, branches };
+
+      return fetch(`${API_BASE}/repositories`, {
         method: 'POST',
         headers: getHeaders(),
-        body: JSON.stringify({ projectId, owner, name, defaultBranch, monitoredBranches }),
-      }).then(handleResponse),
+        body: JSON.stringify(bodyPayload),
+      }).then(handleResponse);
+    },
+    delete: (id: string) =>
+      fetch(`${API_BASE}/repositories/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
   documents: {
     listByProject: (projectId: string) =>
@@ -120,17 +157,6 @@ export const api = {
       }).then(handleResponse),
     delete: (id: string) =>
       fetch(`${API_BASE}/documents/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
-  },
-  gmail: {
-    getAuthUrl: () => fetch(`${API_BASE}/gmail/auth-url`, { headers: getHeaders() }).then(handleResponse),
-    sendReport: (payload: { accessToken: string; to: string; subject: string; content: string; projectName?: string }) =>
-      fetch(`${API_BASE}/gmail/send-report`, {
-        method: 'POST',
-        headers: getHeaders(),
-        body: JSON.stringify(payload),
-      }).then(handleResponse),
-    getMessages: (accessToken: string) =>
-      fetch(`${API_BASE}/gmail/messages?accessToken=${encodeURIComponent(accessToken)}`, { headers: getHeaders() }).then(handleResponse),
   },
   chat: {
     getSessions: () => fetch(`${API_BASE}/chat/sessions`, { headers: getHeaders() }).then(handleResponse),
@@ -150,7 +176,3 @@ export const api = {
       fetch(`${API_BASE}/chat/sessions/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
   },
 };
-
-
-
-

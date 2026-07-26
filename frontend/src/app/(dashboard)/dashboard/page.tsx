@@ -171,10 +171,32 @@ export default function DashboardPage() {
     } catch {}
   };
 
-  const handleSendEmail = (msgId: string, targetEmail?: string) => {
+  const handleSendEmail = async (msgId: string, targetEmail?: string) => {
     const recipient = targetEmail || settings.userEmail;
-    setEmailedMessageIds((prev) => new Set(prev).add(msgId));
-    showNotification(`Respuesta enviada a ${recipient}`);
+    const msg = messages.find((m) => m.id === msgId);
+    const content = msg ? formatCleanContent(msg.content) : 'Respuesta de ForgeMind Intelligence';
+
+    const token = localStorage.getItem('gmail_access_token') || localStorage.getItem('google_token');
+
+    if (!token) {
+      try {
+        const { url } = await api.gmail.getAuthUrl();
+        if (url) {
+          window.location.href = url;
+          return;
+        }
+      } catch {}
+      showNotification('Vincule su cuenta de Gmail para enviar correos');
+      return;
+    }
+
+    try {
+      await api.gmail.sendReport(token, recipient, 'Respuesta de Inteligencia - ForgeMind', content);
+      setEmailedMessageIds((prev) => new Set(prev).add(msgId));
+      showNotification(`Respuesta enviada con éxito por Gmail a ${recipient}`);
+    } catch (err: any) {
+      showNotification(err?.message || 'Error al enviar correo por Gmail');
+    }
   };
 
   useEffect(() => {
