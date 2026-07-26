@@ -467,60 +467,93 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
                     </div>
 
                     <div className="flex-1 p-4 overflow-auto font-mono text-xs text-slate-300 select-text flex items-center justify-center">
-                      {!isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04') ? (
-                        <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-slate-950/80 border border-slate-800 rounded-2xl space-y-4">
-                          <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-                            <AlertCircle size={32} />
-                          </div>
-                          <div className="space-y-1.5 max-w-sm">
-                            <h4 className="text-sm font-bold text-white">Formato de archivo no soportado para lectura directa</h4>
-                            <p className="text-xs text-slate-400 leading-relaxed">
-                              El archivo <span className="font-semibold text-slate-200">{readResult.metadata.name}</span> tiene una estructura que no se puede previsualizar ni leer por este canal.
-                            </p>
-                          </div>
-                          <div className="text-[11px] bg-slate-900 text-slate-400 px-4 py-2 rounded-xl border border-slate-800/80 max-w-sm font-sans">
-                            Formatos soportados: <span className="text-slate-200 font-semibold">Documentos (Docs, Word, PDF, TXT), Hojas de cálculo (Excel, CSV), Imágenes, Audio y Video.</span>
-                          </div>
-                        </div>
-                      ) : readResult.metadata.mimeType.startsWith('image/') || readResult.content.startsWith('data:image/') ? (
-                        <div className="flex items-center justify-center h-full w-full">
-                          <img
-                            src={readResult.content}
-                            alt={readResult.metadata.name}
-                            className="max-h-[48vh] max-w-full rounded-2xl object-contain border border-slate-800 shadow-xl"
-                          />
-                        </div>
-                      ) : readResult.metadata.mimeType.startsWith('audio/') || readResult.content.startsWith('data:audio/') ? (
-                        <div className="flex flex-col items-center justify-center h-full w-full p-6 space-y-4 bg-slate-900/60 rounded-2xl border border-slate-800">
-                          <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-                            <Music size={32} />
-                          </div>
-                          <p className="text-sm font-semibold text-white">{readResult.metadata.name}</p>
-                          <audio controls src={readResult.content} className="w-full max-w-md" />
-                        </div>
-                      ) : readResult.metadata.mimeType.startsWith('video/') ? (
-                        <div className="w-full h-full min-h-[300px] rounded-2xl overflow-hidden border border-slate-800 bg-black flex items-center justify-center">
-                          {readResult.content.startsWith('http') ? (
-                            <iframe
-                              src={readResult.content}
-                              className="w-full h-full min-h-[300px] border-none"
-                              allow="autoplay"
-                            />
-                          ) : (
-                            <video controls src={readResult.content} className="max-h-[48vh] w-full rounded-2xl" />
-                          )}
-                        </div>
-                      ) : readResult.metadata.mimeType.includes('pdf') || readResult.metadata.name.toLowerCase().endsWith('.pdf') ? (
-                        <div className="w-full h-full min-h-[340px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center">
-                          <iframe
-                            src={readResult.content.startsWith('http') ? readResult.content : `https://drive.google.com/file/d/${readResult.metadata.id}/preview`}
-                            className="w-full h-full min-h-[340px] border-none rounded-2xl"
-                            allow="autoplay"
-                          />
-                        </div>
-                      ) : isSpreadsheetData(readResult.metadata.mimeType, readResult.metadata.name) ? (
-                        (() => {
-                          const rows = parseCsvRows(readResult.content);
+                      {(() => {
+                        const isDocx = readResult.metadata.name.toLowerCase().endsWith('.docx') || readResult.metadata.mimeType.includes('wordprocessingml');
+                        let contentToRender = readResult.content;
+
+                        if (isDocx && contentToRender.includes('<w:t')) {
+                          const textMatches = contentToRender.match(/<w:t[^>]*>(.*?)<\/w:t>/g);
+                          if (textMatches && textMatches.length > 0) {
+                            contentToRender = textMatches.map((m) => m.replace(/<[^>]+>/g, '').trim()).filter(Boolean).join(' ');
+                          }
+                        }
+
+                        const isRawBinary = !isDocx && contentToRender.startsWith('PK\x03\x04');
+                        const isSupported = isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) && !isRawBinary;
+
+                        if (!isSupported) {
+                          return (
+                            <div className="flex flex-col items-center justify-center h-full w-full p-8 text-center bg-slate-950/80 border border-slate-800 rounded-2xl space-y-4">
+                              <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
+                                <AlertCircle size={32} />
+                              </div>
+                              <div className="space-y-1.5 max-w-sm">
+                                <h4 className="text-sm font-bold text-white">Formato de archivo no soportado para lectura directa</h4>
+                                <p className="text-xs text-slate-400 leading-relaxed">
+                                  El archivo <span className="font-semibold text-slate-200">{readResult.metadata.name}</span> tiene una estructura binaria o comprimida no compatible para previsualización.
+                                </p>
+                              </div>
+                              <div className="text-[11px] bg-slate-900 text-slate-400 px-4 py-2 rounded-xl border border-slate-800/80 max-w-sm font-sans">
+                                Formatos soportados: <span className="text-slate-200 font-semibold">Documentos (Docs, Word, PDF, TXT), Hojas de cálculo (Excel, CSV), Imágenes, Audio y Video.</span>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (readResult.metadata.mimeType.startsWith('image/') || contentToRender.startsWith('data:image/')) {
+                          return (
+                            <div className="flex items-center justify-center h-full w-full">
+                              <img
+                                src={contentToRender}
+                                alt={readResult.metadata.name}
+                                className="max-h-[48vh] max-w-full rounded-2xl object-contain border border-slate-800 shadow-xl"
+                              />
+                            </div>
+                          );
+                        }
+
+                        if (readResult.metadata.mimeType.startsWith('audio/') || contentToRender.startsWith('data:audio/')) {
+                          return (
+                            <div className="flex flex-col items-center justify-center h-full w-full p-6 space-y-4 bg-slate-900/60 rounded-2xl border border-slate-800">
+                              <div className="w-16 h-16 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+                                <Music size={32} />
+                              </div>
+                              <p className="text-sm font-semibold text-white">{readResult.metadata.name}</p>
+                              <audio controls src={contentToRender} className="w-full max-w-md" />
+                            </div>
+                          );
+                        }
+
+                        if (readResult.metadata.mimeType.startsWith('video/')) {
+                          return (
+                            <div className="w-full h-full min-h-[300px] rounded-2xl overflow-hidden border border-slate-800 bg-black flex items-center justify-center">
+                              {contentToRender.startsWith('http') ? (
+                                <iframe
+                                  src={contentToRender}
+                                  className="w-full h-full min-h-[300px] border-none"
+                                  allow="autoplay"
+                                />
+                              ) : (
+                                <video controls src={contentToRender} className="max-h-[48vh] w-full rounded-2xl" />
+                              )}
+                            </div>
+                          );
+                        }
+
+                        if (readResult.metadata.mimeType.includes('pdf') || readResult.metadata.name.toLowerCase().endsWith('.pdf')) {
+                          return (
+                            <div className="w-full h-full min-h-[340px] rounded-2xl overflow-hidden border border-slate-800 bg-slate-950 flex items-center justify-center">
+                              <iframe
+                                src={contentToRender.startsWith('http') ? contentToRender : `https://drive.google.com/file/d/${readResult.metadata.id}/preview`}
+                                className="w-full h-full min-h-[340px] border-none rounded-2xl"
+                                allow="autoplay"
+                              />
+                            </div>
+                          );
+                        }
+
+                        if (isSpreadsheetData(readResult.metadata.mimeType, readResult.metadata.name)) {
+                          const rows = parseCsvRows(contentToRender);
                           if (rows.length === 0) return <div className="text-slate-500 italic">Hoja de cálculo vacía.</div>;
 
                           return (
@@ -553,12 +586,14 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
                               </table>
                             </div>
                           );
-                        })()
-                      ) : (
-                        <div className="whitespace-pre-wrap leading-relaxed w-full h-full">
-                          {readResult.content}
-                        </div>
-                      )}
+                        }
+
+                        return (
+                          <div className="whitespace-pre-wrap leading-relaxed w-full h-full">
+                            {contentToRender}
+                          </div>
+                        );
+                      })()}
                     </div>
                   </div>
 
