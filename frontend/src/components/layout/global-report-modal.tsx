@@ -535,38 +535,16 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     {contactsList.length}
                   </span>
                 </button>
-
-                <button
-                  onClick={() => {
-                    setReadingModalMsg(null);
-                    setFolder('templates');
-                  }}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                    folder === 'templates'
-                      ? 'bg-red-500/10 text-red-600 font-bold'
-                      : 'text-slate-600 hover:bg-slate-200/50'
-                  }`}
-                >
-                  <FileText size={16} />
-                  <span>Plantillas IA</span>
-                </button>
               </nav>
             </div>
 
-            <div className="pt-3 border-t border-slate-200/80 space-y-2">
+            <div className="pt-3 border-t border-slate-200/80">
               <div className="flex items-center gap-2 px-1">
                 <span className={`w-2 h-2 rounded-full ${gmailConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
                 <span className="text-[11px] font-semibold text-slate-700 truncate">
                   {gmailConnected ? gmailEmail : 'Sin vincular'}
                 </span>
               </div>
-              <button
-                onClick={handleAuthorizeScope}
-                className="w-full text-[11px] font-bold bg-slate-900 hover:bg-slate-800 text-white py-2 rounded-xl transition-all flex items-center justify-center gap-1.5"
-              >
-                <Key size={12} className="text-amber-400" />
-                <span>Autorizar Permisos</span>
-              </button>
             </div>
           </div>
 
@@ -943,38 +921,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                     {sendingEmail ? <DotsLoader className="text-white" /> : <Send size={14} />}
                     {sendingEmail ? 'Enviando...' : 'Enviar por Gmail'}
                   </button>
-                </div>
-              </div>
-            )}
-
-            {/* Folder 4: PLANTILLAS */}
-            {folder === 'templates' && (
-              <div className="flex-1 p-6 overflow-y-auto space-y-4">
-                <h3 className="text-sm font-bold text-slate-900">Plantillas de Reportes IA</h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div
-                    onClick={() => {
-                      setReportType('project');
-                      setFolder('compose');
-                    }}
-                    className="p-4 bg-slate-50 hover:bg-red-50/40 border border-slate-200 rounded-2xl cursor-pointer transition-all space-y-2"
-                  >
-                    <Target size={20} className="text-red-500" />
-                    <p className="text-xs font-bold text-slate-900">Reporte Ejecutivo de Proyecto</p>
-                    <p className="text-[11px] text-slate-500">Formato conciso para clientes con avances clave y métricas.</p>
-                  </div>
-
-                  <div
-                    onClick={() => {
-                      setReportType('documents');
-                      setFolder('compose');
-                    }}
-                    className="p-4 bg-slate-50 hover:bg-purple-50/40 border border-slate-200 rounded-2xl cursor-pointer transition-all space-y-2"
-                  >
-                    <FileText size={20} className="text-purple-600" />
-                    <p className="text-xs font-bold text-slate-900">Reporte de Especificaciones</p>
-                    <p className="text-[11px] text-slate-500">Resumen de requerimientos y análisis técnico procesado.</p>
-                  </div>
                 </div>
               </div>
             )}

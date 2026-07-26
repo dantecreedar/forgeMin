@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Sparkles, MessageSquare, X, Send, Mail, Bookmark, Check } from 'lucide-react';
+import { Sparkles, MessageSquare, X, Send, Mail, Save, Check } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { GraphCard } from './graph-card';
 import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
@@ -63,7 +63,7 @@ import { SendEmailDropdown } from './send-email-dropdown';
 import { DotsLoader } from '@/components/ui/dots-loader';
 
 export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
-  const { settings } = useProfileSettings();
+  const { settings, saveResponse } = useProfileSettings();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -91,8 +91,40 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
   };
 
   const handleSaveResponse = (msgId: string) => {
+    const targetMsg = messages.find((m) => m.id === msgId);
+    if (targetMsg) {
+      const cleanContent = formatCleanContent(targetMsg.content);
+      saveResponse('Respuesta de Inteligencia', cleanContent);
+    }
     setSavedMessageIds((prev) => new Set(prev).add(msgId));
-    showNotification('Respuesta guardada en tu biblioteca de respuestas');
+    showNotification('Respuesta guardada en la sección Chat Guardados');
+  };
+
+  const [sessionId] = useState<string>(() => 'session-' + Date.now());
+
+  const autoSaveSessionThread = (updatedMsgs: Message[]) => {
+    if (updatedMsgs.length === 0) return;
+    const firstUserMsg = updatedMsgs.find((m) => m.role === 'user')?.content || 'Conversación de Inteligencia';
+    const title = firstUserMsg.length > 35 ? firstUserMsg.slice(0, 35) + '...' : firstUserMsg;
+
+    const sessionObj = {
+      id: sessionId,
+      title,
+      messages: updatedMsgs.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    api.chat.saveSession(sessionObj).catch(() => {});
+
+    try {
+      const savedList = localStorage.getItem('forgemind_auto_chat_sessions');
+      const list = savedList ? JSON.parse(savedList) : [];
+      const filtered = list.filter((s: any) => s.id !== sessionId);
+      const newList = [sessionObj, ...filtered];
+      localStorage.setItem('forgemind_auto_chat_sessions', JSON.stringify(newList));
+      window.dispatchEvent(new Event('forgemind:saved-responses-updated'));
+    } catch {}
   };
 
   const send = async () => {
@@ -100,33 +132,39 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
     const text = input.trim();
     setInput('');
     const userMsgId = Date.now().toString();
-    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: text }]);
+    const newMsgsWithUser = [...messages, { id: userMsgId, role: 'user' as const, content: text }];
+    setMessages(newMsgsWithUser);
     setLoading(true);
 
     try {
       const res = await api.engine.command(text);
       const assistantMsgId = (Date.now() + 1).toString();
-      setMessages((prev) => [
-        ...prev,
+      const finalMsgs = [
+        ...newMsgsWithUser,
         {
           id: assistantMsgId,
-          role: 'assistant',
+          role: 'assistant' as const,
           content: res.message || 'Operación completada',
           payload: res,
         },
-      ]);
+      ];
+      setMessages(finalMsgs);
+      autoSaveSessionThread(finalMsgs);
+
       if (res.type === 'created' || res.type === 'updated' || res.type === 'deleted' || res.type === 'connected') {
         window.dispatchEvent(new CustomEvent('forgemind:refresh'));
       }
     } catch (e: any) {
-      setMessages((prev) => [
-        ...prev,
+      const errorMsgs = [
+        ...newMsgsWithUser,
         {
           id: Date.now().toString(),
-          role: 'assistant',
+          role: 'assistant' as const,
           content: e?.message || 'Ocurrió un error al procesar tu mensaje.',
         },
-      ]);
+      ];
+      setMessages(errorMsgs);
+      autoSaveSessionThread(errorMsgs);
     } finally {
       setLoading(false);
     }
@@ -246,7 +284,7 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
                       }`}
                       title="Guardar respuesta en la biblioteca"
                     >
-                      {isSaved ? <Check size={11} /> : <Bookmark size={11} />}
+                      {isSaved ? <Check size={11} /> : <Save size={11} />}
                       <span>{isSaved ? 'Guardada' : 'Guardar Respuesta'}</span>
                     </button>
                   </div>

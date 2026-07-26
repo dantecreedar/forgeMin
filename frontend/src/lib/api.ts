@@ -132,6 +132,23 @@ export const api = {
     getMessages: (accessToken: string) =>
       fetch(`${API_BASE}/gmail/messages?accessToken=${encodeURIComponent(accessToken)}`, { headers: getHeaders() }).then(handleResponse),
   },
+  chat: {
+    getSessions: () => fetch(`${API_BASE}/chat/sessions`, { headers: getHeaders() }).then(handleResponse),
+    saveSession: (session: any) =>
+      fetch(`${API_BASE}/chat/sessions`, {
+        method: 'POST',
+        headers: getHeaders(),
+        body: JSON.stringify(session),
+      }).then(handleResponse),
+    updateSession: (id: string, updates: any) =>
+      fetch(`${API_BASE}/chat/sessions/${id}`, {
+        method: 'PATCH',
+        headers: getHeaders(),
+        body: JSON.stringify(updates),
+      }).then(handleResponse),
+    deleteSession: (id: string) =>
+      fetch(`${API_BASE}/chat/sessions/${id}`, { method: 'DELETE', headers: getHeaders() }).then(handleResponse),
+  },
 };
 
 

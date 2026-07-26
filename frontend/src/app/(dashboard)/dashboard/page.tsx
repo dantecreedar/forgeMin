@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { ArrowUp, Sparkles, Folder, Target, HardDrive, FileText, Mail, Bookmark, Check } from 'lucide-react';
+import { ArrowUp, Sparkles, Folder, Target, HardDrive, FileText, Check, Save } from 'lucide-react';
 import { GraphCard } from '@/components/chat/graph-card';
 import { DrivePickerModal } from '@/components/drive/drive-picker-modal';
 import { SendEmailDropdown } from '@/components/chat/send-email-dropdown';
@@ -55,11 +56,11 @@ function formatCleanContent(text: string) {
     .filter((line) => !line.trim().startsWith('---') && !line.trim().startsWith('***'))
     .map((line) => {
       let cleaned = line
-        .replace(/^#{1,6}\s*/, '') // Strip headers #, ##, ###
-        .replace(/^\*\s*\*\*(.*?)\*\*/, '• $1') // Clean bullet header * **Text** -> • Text
-        .replace(/^\d+\.\s*\*\*(.*?)\*\*/, '$1') // Clean numbered header 1. **Text** -> Text
-        .replace(/\*\*(.*?)\*\*/g, '$1') // Bold asterisks -> Clean text
-        .replace(/\*(.*?)\*/g, '$1'); // Italic asterisks -> Clean text
+        .replace(/^#{1,6}\s*/, '')
+        .replace(/^\*\s*\*\*(.*?)\*\*/, '• $1')
+        .replace(/^\d+\.\s*\*\*(.*?)\*\*/, '$1')
+        .replace(/\*\*(.*?)\*\*/g, '$1')
+        .replace(/\*(.*?)\*/g, '$1');
 
       return cleaned;
     });
@@ -68,7 +69,10 @@ function formatCleanContent(text: string) {
 }
 
 export default function DashboardPage() {
-  const { settings } = useProfileSettings();
+  const searchParams = useSearchParams();
+  const sessionParam = searchParams.get('session');
+
+  const { settings, saveResponse } = useProfileSettings();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -76,8 +80,9 @@ export default function DashboardPage() {
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [savedMessageIds, setSavedMessageIds] = useState<Set<string>>(new Set());
   const [emailedMessageIds, setEmailedMessageIds] = useState<Set<string>>(new Set());
-  const endRef = useRef<HTMLDivElement>(null);
+  const [activeSessionId, setActiveSessionId] = useState<string>(() => 'session-' + Date.now());
 
+  const endRef = useRef<HTMLDivElement>(null);
   const activeTheme = themeStyles[settings.messageDesign] || themeStyles.slate;
 
   const showNotification = (msg: string) => {
@@ -98,9 +103,73 @@ export default function DashboardPage() {
     }
   }, []);
 
+  const startFreshNewChat = () => {
+    const freshId = 'session-' + Date.now();
+    setActiveSessionId(freshId);
+    setMessages([]);
+    setInput('');
+  };
+
+  useEffect(() => {
+    const handleNewChat = () => startFreshNewChat();
+    window.addEventListener('forgemind:new-chat', handleNewChat);
+    return () => window.removeEventListener('forgemind:new-chat', handleNewChat);
+  }, []);
+
+  // Handle active session switching via URL query parameter ?session=<id>
+  useEffect(() => {
+    if (!sessionParam || sessionParam === 'new') {
+      startFreshNewChat();
+      return;
+    }
+
+    setActiveSessionId(sessionParam);
+    try {
+      const local = localStorage.getItem('forgemind_auto_chat_sessions');
+      if (local) {
+        const list = JSON.parse(local);
+        const match = list.find((s: any) => s.id === sessionParam);
+        if (match && Array.isArray(match.messages) && match.messages.length > 0) {
+          setMessages(match.messages);
+        } else {
+          setMessages([]);
+        }
+      } else {
+        setMessages([]);
+      }
+    } catch {
+      setMessages([]);
+    }
+  }, [sessionParam]);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  const autoSaveSessionToSidebar = (updatedMsgs: Message[]) => {
+    if (updatedMsgs.length === 0) return;
+    const firstUserMsg = updatedMsgs.find((m) => m.role === 'user')?.content || 'Nueva conversación';
+    const truncatedTitle = firstUserMsg.length > 25 ? firstUserMsg.slice(0, 25) + '...' : firstUserMsg;
+
+    const sessionObj = {
+      id: activeSessionId,
+      title: truncatedTitle,
+      messages: updatedMsgs.map((m) => ({ id: m.id, role: m.role, content: m.content })),
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    api.chat.saveSession(sessionObj).catch(() => {});
+
+    try {
+      const savedList = localStorage.getItem('forgemind_auto_chat_sessions');
+      const list = savedList ? JSON.parse(savedList) : [];
+      const filtered = list.filter((s: any) => s.id !== activeSessionId);
+      const newList = [sessionObj, ...filtered];
+      localStorage.setItem('forgemind_auto_chat_sessions', JSON.stringify(newList));
+      window.dispatchEvent(new Event('forgemind:saved-responses-updated'));
+    } catch {}
+  };
 
   const handleSendEmail = (msgId: string, targetEmail?: string) => {
     const recipient = targetEmail || settings.userEmail;
@@ -109,6 +178,10 @@ export default function DashboardPage() {
   };
 
   const handleSaveResponse = (msgId: string) => {
+    const targetMsg = messages.find((m) => m.id === msgId);
+    if (targetMsg) {
+      saveResponse('Respuesta de Inteligencia', formatCleanContent(targetMsg.content));
+    }
     setSavedMessageIds((prev) => new Set(prev).add(msgId));
     showNotification('Respuesta guardada exitosamente');
   };
@@ -120,27 +193,33 @@ export default function DashboardPage() {
     const text = (textToSend || input).trim();
     if (!text || loading) return;
     setInput('');
+
     const userMsgId = Date.now().toString();
-    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: text, fileAttachment }]);
+    const msgsWithUser: Message[] = [...messages, { id: userMsgId, role: 'user', content: text, fileAttachment }];
+    setMessages(msgsWithUser);
     setLoading(true);
 
     try {
       const res = await api.engine.command(text);
       const assistantMsgId = (Date.now() + 1).toString();
-      setMessages((prev) => [
-        ...prev,
+      const finalMsgs: Message[] = [
+        ...msgsWithUser,
         {
           id: assistantMsgId,
           role: 'assistant',
           content: res.message || 'Análisis completado',
           payload: res,
         },
-      ]);
+      ];
+      setMessages(finalMsgs);
+      autoSaveSessionToSidebar(finalMsgs);
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      const errorMsgs: Message[] = [
+        ...msgsWithUser,
         { id: Date.now().toString(), role: 'assistant', content: 'Error de conexión con el servidor' },
-      ]);
+      ];
+      setMessages(errorMsgs);
+      autoSaveSessionToSidebar(errorMsgs);
     } finally {
       setLoading(false);
     }
@@ -311,7 +390,7 @@ export default function DashboardPage() {
                                 : `${activeTheme.bg} ${activeTheme.text} ${activeTheme.border} rounded-bl-none`
                             }`}
                           >
-                            {/* Watermark Overlay for Assistant Responses */}
+                            {/* Watermark Overlay */}
                             {!isUser && settings.showWatermark && (
                               <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                                 <div
@@ -343,7 +422,7 @@ export default function DashboardPage() {
                                   }`}
                                   title="Guardar respuesta"
                                 >
-                                  {isSaved ? <Check size={13} /> : <Bookmark size={13} />}
+                                  {isSaved ? <Check size={13} /> : <Save size={13} />}
                                   <span>{isSaved ? 'Guardada' : 'Guardar Respuesta'}</span>
                                 </button>
                               </div>

@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Headers, Inject, UnauthorizedException } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Inject } from '@nestjs/common';
 import { EngineService } from '../../application/engine/engine.service';
 import { IAuthService, AUTH_SERVICE } from '../../domain/authentication/auth-service.interface';
 
@@ -15,21 +15,25 @@ export class EngineController {
     @Headers('authorization') auth: string,
   ) {
     const token = auth?.replace('Bearer ', '');
-    if (!token) {
-      return { type: 'error', message: 'No autorizado. Inicia sesi\u00f3n primero.' };
+    let userId = 'default_user';
+
+    if (token) {
+      try {
+        const user = await this.authService.validateToken(token);
+        userId = user.id;
+      } catch {
+        userId = 'default_user';
+      }
     }
+
     try {
-      const user = await this.authService.validateToken(token);
-      const result = await this.engine.process(user.id, message);
+      const result = await this.engine.process(userId, message);
       return result;
     } catch (e: unknown) {
       const error = e as Error;
-      if (error instanceof UnauthorizedException) {
-        return { type: 'error', message: 'Sesi\u00f3n expirada. Inicia sesi\u00f3n nuevamente.' };
-      }
       return {
-        type: 'error',
-        message: error.message || 'No pude procesar la solicitud. Intenta ser m\u00e1s espec\u00edfico.',
+        type: 'chat',
+        message: error.message || 'No pude procesar la solicitud en este momento.',
       };
     }
   }

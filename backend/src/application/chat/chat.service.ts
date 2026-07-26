@@ -3,25 +3,87 @@ import { GeminiService, ChatMessage } from '../../infrastructure/gemini/gemini.s
 import { ObjectiveApplicationService } from '../objective/objective.service';
 import { ProjectApplicationService } from '../project/project.service';
 
+export interface ChatSession {
+  id: string;
+  title: string;
+  projectId?: string;
+  projectName?: string;
+  folderName?: string;
+  messages: Array<{
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    timestamp?: string;
+  }>;
+  createdAt: string;
+  updatedAt: string;
+}
+
 @Injectable()
 export class ChatService {
+  private sessionsStore: Map<string, ChatSession> = new Map();
+
   constructor(
     private readonly gemini: GeminiService,
     private readonly objectives: ObjectiveApplicationService,
     private readonly projects: ProjectApplicationService,
   ) {}
 
+  getSessions(): ChatSession[] {
+    return Array.from(this.sessionsStore.values()).sort(
+      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+    );
+  }
+
+  saveSession(session: Partial<ChatSession> & { id: string }): ChatSession {
+    const existing = this.sessionsStore.get(session.id);
+    const now = new Date().toISOString();
+
+    const title = session.title || existing?.title || (session.messages?.[0]?.content ? session.messages[0].content.slice(0, 25) + '...' : 'Nueva conversación');
+
+    const updated: ChatSession = {
+      id: session.id,
+      title,
+      projectId: session.projectId ?? existing?.projectId,
+      projectName: session.projectName ?? existing?.projectName,
+      folderName: session.folderName ?? existing?.folderName,
+      messages: session.messages || existing?.messages || [],
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    };
+
+    this.sessionsStore.set(session.id, updated);
+    return updated;
+  }
+
+  updateSession(id: string, updates: { projectId?: string | null; projectName?: string | null; folderName?: string | null; title?: string }): ChatSession | null {
+    const existing = this.sessionsStore.get(id);
+    if (!existing) return null;
+
+    const updated: ChatSession = {
+      ...existing,
+      projectId: updates.projectId === null ? undefined : (updates.projectId ?? existing.projectId),
+      projectName: updates.projectName === null ? undefined : (updates.projectName ?? existing.projectName),
+      folderName: updates.folderName === null ? undefined : (updates.folderName ?? existing.folderName),
+      title: updates.title ?? existing.title,
+      updatedAt: new Date().toISOString(),
+    };
+
+    this.sessionsStore.set(id, updated);
+    return updated;
+  }
+
+  deleteSession(id: string): boolean {
+    return this.sessionsStore.delete(id);
+  }
+
   async sendMessage(projectId: string, message: string) {
     const lower = message.toLowerCase();
 
-    const createPatterns = [
-      'crea', 'crear', 'create', 'nuevo', 'nueva', 'new',
-      'agrega', 'agregar', 'add',
-    ];
+    const createObjectivePatterns = ['crear objetivo:', 'nuevo objetivo:', 'crea un objetivo para:'];
+    const isExplicitObjectiveRequest = createObjectivePatterns.some((p) => lower.includes(p));
 
-    const isCreateRequest = createPatterns.some((p) => lower.includes(p));
-
-    if (isCreateRequest) {
+    if (isExplicitObjectiveRequest) {
       try {
         const objective = await this.gemini.createObjectiveFromText(message);
 
@@ -46,10 +108,7 @@ export class ChatService {
           objective: created,
         };
       } catch {
-        return {
-          type: 'error',
-          message: 'No pude crear el objetivo. Intenta de nuevo con más detalles.',
-        };
+        // Fallback to chat
       }
     }
 
@@ -57,8 +116,8 @@ export class ChatService {
       const history: ChatMessage[] = [
         {
           role: 'system',
-          content: `Eres un asistente de ingeniería para ForgeMind. Ayudas al usuario con sus proyectos de software, consultas e informes sobre documentos.
-Puedes analizar objetivos, evaluar documentación, sugerir mejoras y planificar tareas.
+          content: `Eres el Asistente de Inteligencia de ForgeMind.
+Tu función es responder a cualquier consulta técnica, general o de desarrollo del usuario de manera fluida y experta, como ChatGPT, dando siempre máxima prioridad a las capacidades y funcionalidades integradas en la plataforma ForgeMind (gestión de proyectos, conexión a repositorios GitHub, análisis de documentos, sincronización de Google Drive y despacho de informes por Gmail).
 
 REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
 - Presenta la información de forma sumamente organizada, clara y profesional.

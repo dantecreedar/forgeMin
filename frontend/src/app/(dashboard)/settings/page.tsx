@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
 import { motion } from 'framer-motion';
-import { Sparkles, Mail, Bookmark, Check, RefreshCw, Type, Eye, Palette, Shield } from 'lucide-react';
+import { Sparkles, Save, Check, RefreshCw, Type, Eye, Palette, Shield } from 'lucide-react';
 import { SendEmailDropdown } from '@/components/chat/send-email-dropdown';
 
 const themes: Array<{
@@ -89,10 +89,10 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <Palette className="text-primary" size={22} />
-            Configuración de Perfil y Diseño
+            Configuración de Marca de Agua y Estilo
           </h1>
           <p className="text-xs text-muted-foreground mt-1">
-            Personaliza el formato de las respuestas, la marca de agua y las preferencias de envío.
+            Personaliza el sello sutil de marca de agua y los temas visuales de tus respuestas de inteligencia.
           </p>
         </div>
         <button
@@ -209,27 +209,6 @@ export default function SettingsPage() {
               })}
             </div>
           </div>
-
-          {/* Section 3: Configuración de Correo */}
-          <div className="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-              <Mail size={18} className="text-primary" />
-              <h2 className="text-sm font-semibold text-slate-900">Correo Electrónico para Respuestas</h2>
-            </div>
-            <div className="space-y-1.5">
-              <label className="text-xs font-medium text-slate-700">Email destinatario por defecto</label>
-              <input
-                type="email"
-                value={settings.userEmail}
-                onChange={(e) => updateSettings({ userEmail: e.target.value })}
-                className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20"
-                placeholder="tu-correo@empresa.com"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Se usará al presionar el botón "Enviar a Email" en cada respuesta.
-              </p>
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Live Interactive Preview */}
@@ -264,7 +243,7 @@ export default function SettingsPage() {
                 <span className="text-xs font-semibold">ForgeMind Assistant</span>
               </div>
 
-              {/* Clean Content (No ### or ***) */}
+              {/* Clean Content */}
               <div className="space-y-3 text-xs leading-relaxed">
                 <p className="font-semibold text-sm">Resumen de Análisis Técnico</p>
                 <p>
@@ -293,14 +272,14 @@ export default function SettingsPage() {
               {/* Action Buttons inside Response */}
               <div className="mt-4 pt-3 border-t border-current/10 flex items-center gap-2">
                 <SendEmailDropdown
-                  defaultEmail={settings.userEmail}
+                  defaultEmail="usuario@empresa.com"
                   onSend={(targetEmail) => showToast(`Respuesta enviada a ${targetEmail}`)}
                 />
                 <button
-                  onClick={() => showToast('Simulación: Respuesta guardada en tu biblioteca')}
+                  onClick={() => showToast('Respuesta guardada en la sección Respuestas Guardadas')}
                   className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium bg-current/10 hover:bg-current/20 transition-all"
                 >
-                  <Bookmark size={12} />
+                  <Save size={12} />
                   <span>Guardar Respuesta</span>
                 </button>
               </div>

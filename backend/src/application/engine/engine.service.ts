@@ -25,7 +25,7 @@ export class EngineService {
       const result = await this.gemini.chat([
         {
           role: 'system',
-          content: `Eres el Director de Inteligencia de ForgeMind. Analiza exhaustivamente el documento proporcionado por el usuario y genera un análisis técnico, estructurado y detallado en español utilizando formato Markdown. Organízalo con titulares, puntos clave, resumen ejecutivo e implicaciones operativas.`,
+          content: `Eres el Director de Inteligencia de ForgeMind. Analiza exhaustivamente el documento proporcionado por el usuario y genera un análisis técnico, estructurado y detallado en español. Organízalo con titulares, puntos clave, resumen ejecutivo e implicaciones operativas sin usar símbolos ### ni ***.`,
         },
         { role: 'user', content: message },
       ]);
@@ -35,15 +35,47 @@ export class EngineService {
       };
     }
 
-    const parsed = await this.parseIntent(userId, message);
-    return this.execute(userId, parsed);
+    try {
+      const parsed = await this.parseIntent(userId, message);
+      if (
+        !parsed ||
+        !parsed.action ||
+        parsed.action === 'chat' ||
+        parsed.action === 'null' ||
+        !parsed.entity ||
+        parsed.entity === 'null'
+      ) {
+        throw new Error('Fallback to chat');
+      }
+      return await this.execute(userId, parsed);
+    } catch {
+      // General ChatGPT fallback for greetings, general queries & natural conversation
+      const result = await this.gemini.chat([
+        {
+          role: 'system',
+          content: `Eres el Asistente de Inteligencia de ForgeMind. Responde de manera fluida, cordial y profesional a la consulta del usuario en español.
+
+REGLA DE FORMATO OBLIGATORIA PARA TODAS LAS RESPUESTAS:
+- Presenta la información de forma sumamente organizada, clara y profesional.
+- NO utilices símbolos de markdown como '###', '***', '---', ni combinaciones de asteriscos ruidosas como '* **Texto:**'.
+- Utiliza líneas limpias, espacios estructurados y viñetas simples (•) para una excelente legibilidad.`,
+        },
+        { role: 'user', content: message },
+      ]);
+
+      return {
+        type: 'chat',
+        message: result.reply,
+      };
+    }
   }
 
   private async parseIntent(userId: string, message: string) {
     const systemPrompt = `Eres el motor de inteligencia de ForgeMind. Analiza el mensaje del usuario y determina QUÉ acción quiere realizar.
 
+    Si el usuario simplemente saluda (ej: 'hola', 'buenas'), hace una consulta general o conversación no relacionada con administración de entidades, responde con action: "chat", entity: "chat".
+
     IMPORTANTE - AUTOCORRECCIÓN DE TYPOS Y ERRORES DE TIPIO:
-    Autocorregirás automáticamente cualquier error ortográfico o de tipeo en las palabras del usuario. Por ejemplo:
     - 'sproyectios', 'proyeto', 'proyectos', 'proyecto' -> entity: 'project'
     - 'objetico', 'objetivo', 'objetivos', 'meta', 'metas', 'task', 'tarea' -> entity: 'objective'
     - 'workspace', 'espacio', 'workspaces' -> entity: 'workspace'
@@ -54,6 +86,7 @@ export class EngineService {
     - 'analizar todo', 'resumen global', 'resumen general', 'analiza todo', 'resumen de proyectos' -> action: 'analyze_all', entity: 'project'
 
     Acciones disponibles:
+    - chat: conversación general o saludo
     - create: crear workspace, project u objective
     - update: actualizar estado/progreso de objective
     - connect: vincular repositorio de github a un proyecto
@@ -62,8 +95,8 @@ export class EngineService {
     - delete: eliminar una entidad
     - analyze_all: analizar la totalidad de los proyectos y devolver un informe ejecutivo global
 
-
     Entidades disponibles:
+    - chat: conversación general
     - workspace: name, description, ownerId (userId)
     - project: name, description, workspaceId
     - objective (tambien llamado task o tarea): title, description, tags[], projectId, status, progress
@@ -73,8 +106,8 @@ export class EngineService {
 
     Responde SOLO con JSON, SIN markdown, SIN formato, SIN texto adicional:
     {
-      "action": "create|update|connect|list|detail|delete",
-      "entity": "workspace|project|objective|github_repo",
+      "action": "chat|create|update|connect|list|detail|delete|analyze_all",
+      "entity": "chat|workspace|project|objective|github_repo",
       "data": { campos necesarios para la acción },
       "search": "término de búsqueda si aplica"
     }`;
@@ -86,9 +119,13 @@ export class EngineService {
 
     const cleaned = result.reply.replace(/```json/g, '').replace(/```/g, '').trim();
     const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('No se pudo interpretar la solicitud');
+    if (!jsonMatch) return { action: 'chat', entity: 'chat', data: {} };
 
-    return JSON.parse(jsonMatch[0]);
+    try {
+      return JSON.parse(jsonMatch[0]);
+    } catch {
+      return { action: 'chat', entity: 'chat', data: {} };
+    }
   }
 
   private async execute(userId: string, parsed: { action: string; entity: string; data: Record<string, unknown>; search?: string }) {
@@ -153,7 +190,6 @@ ${JSON.stringify(enriched, null, 2)}`;
     }
 
     if (action === 'list') {
-
       if (entity === 'workspace') {
         const list = await this.workspaces.findByUser(userId);
         return { type: 'list', entity: 'workspace', items: list, message: `Tienes ${list.length} workspace${list.length !== 1 ? 's' : ''}` };
@@ -173,7 +209,6 @@ ${JSON.stringify(enriched, null, 2)}`;
           return { type: 'list', entity: 'project', items: [], message: 'No tienes ningún proyecto registrado todavía.' };
         }
 
-        // Enrich projects with their objectives & repositories for graph visualization
         const enrichedProjects = await Promise.all(
           rawProjects.map(async (proj) => {
             const objs = await this.objectives.findByProjectId(proj.id);
@@ -184,7 +219,6 @@ ${JSON.stringify(enriched, null, 2)}`;
 
         return { type: 'list', entity: 'project', items: enrichedProjects, message: `Tienes ${enrichedProjects.length} proyecto${enrichedProjects.length !== 1 ? 's' : ''}` };
       }
-
 
       if (entity === 'objective') {
         let list: any[] = [];
@@ -209,7 +243,6 @@ ${JSON.stringify(enriched, null, 2)}`;
           return { type: 'error', message: `No se pudieron obtener los repositorios de GitHub: ${err.message}` };
         }
       }
-
     }
 
     if (action === 'create') {
@@ -319,7 +352,8 @@ ${JSON.stringify(enriched, null, 2)}`;
       return { type: 'connected', entity: 'github_repo', item: connected, message: `Repositorio ${owner}/${name} vinculado exitosamente` };
     }
 
-    throw new Error(`No se pudo ejecutar: ${action} ${entity}`);
+    // Default conversational fallback
+    const result = await this.gemini.chat([{ role: 'user', content: `Responde cordialmente: ${parsed.action}` }]);
+    return { type: 'chat', message: result.reply };
   }
 }
-
