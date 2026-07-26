@@ -177,13 +177,24 @@ export default function DashboardPage() {
     showNotification(`Respuesta enviada a ${recipient}`);
   };
 
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('forgemind_saved_msg_ids');
+      if (stored) {
+        setSavedMessageIds(new Set(JSON.parse(stored)));
+      }
+    } catch {}
+  }, []);
+
   const handleSaveResponse = (msgId: string) => {
-    const targetMsg = messages.find((m) => m.id === msgId);
-    if (targetMsg) {
-      saveResponse('Respuesta de Inteligencia', formatCleanContent(targetMsg.content));
-    }
-    setSavedMessageIds((prev) => new Set(prev).add(msgId));
-    showNotification('Respuesta guardada exitosamente');
+    const nextSet = new Set(savedMessageIds);
+    nextSet.add(msgId);
+    setSavedMessageIds(nextSet);
+    try {
+      localStorage.setItem('forgemind_saved_msg_ids', JSON.stringify(Array.from(nextSet)));
+    } catch {}
+    autoSaveSessionToSidebar(messages);
+    showNotification('Respuesta guardada en el historial');
   };
 
   const send = async (
@@ -384,17 +395,17 @@ export default function DashboardPage() {
                           </div>
                         ) : (
                           <div
-                            className={`px-4 py-3.5 text-xs sm:text-sm leading-relaxed rounded-2xl relative transition-all ${
+                            className={`relative transition-all ${
                               isUser
-                                ? 'bg-blue-600 text-white shadow-xs rounded-br-none font-medium'
-                                : `${activeTheme.bg} ${activeTheme.text} ${activeTheme.border} rounded-bl-none`
+                                ? 'bg-slate-200/90 text-slate-900 px-4 py-3 rounded-3xl rounded-br-xs shadow-2xs font-medium text-xs sm:text-sm'
+                                : 'bg-transparent text-slate-800 py-1 text-xs sm:text-sm leading-relaxed'
                             }`}
                           >
-                            {/* Watermark Overlay */}
+                            {/* Watermark Overlay for Assistant Responses */}
                             {!isUser && settings.showWatermark && (
                               <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
                                 <div
-                                  className="w-full h-full flex items-center justify-center select-none font-bold text-xs tracking-widest uppercase transform -rotate-12"
+                                  className="w-full h-full flex items-center justify-center select-none font-bold text-xs tracking-widest uppercase transform -rotate-12 text-slate-400"
                                   style={{ opacity: settings.watermarkOpacity }}
                                 >
                                   {settings.watermarkText}
@@ -406,7 +417,7 @@ export default function DashboardPage() {
 
                             {/* Assistant Response Actions */}
                             {!isUser && (
-                              <div className="mt-3.5 pt-2.5 border-t border-current/15 flex items-center justify-end gap-2 relative z-10">
+                              <div className="mt-3 flex items-center justify-start gap-2 relative z-10">
                                 <SendEmailDropdown
                                   defaultEmail={settings.userEmail}
                                   isSent={isEmailed}
@@ -417,8 +428,8 @@ export default function DashboardPage() {
                                   onClick={() => handleSaveResponse(msg.id)}
                                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
                                     isSaved
-                                      ? 'bg-blue-600 text-white'
-                                      : 'bg-current/10 hover:bg-current/20'
+                                      ? 'bg-blue-600 text-white shadow-xs'
+                                      : 'bg-slate-200/70 hover:bg-slate-200 text-slate-700'
                                   }`}
                                   title="Guardar respuesta"
                                 >
