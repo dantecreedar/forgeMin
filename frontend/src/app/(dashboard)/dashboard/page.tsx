@@ -305,7 +305,7 @@ export default function DashboardPage() {
                           </div>
                         ) : (
                           <div
-                            className={`px-4 py-3.5 text-xs sm:text-sm leading-relaxed rounded-2xl relative overflow-hidden transition-all ${
+                            className={`px-4 py-3.5 text-xs sm:text-sm leading-relaxed rounded-2xl relative transition-all ${
                               isUser
                                 ? 'bg-blue-600 text-white shadow-xs rounded-br-none font-medium'
                                 : `${activeTheme.bg} ${activeTheme.text} ${activeTheme.border} rounded-bl-none`
@@ -313,11 +313,13 @@ export default function DashboardPage() {
                           >
                             {/* Watermark Overlay for Assistant Responses */}
                             {!isUser && settings.showWatermark && (
-                              <div
-                                className="absolute inset-0 flex items-center justify-center pointer-events-none select-none font-bold text-xs tracking-widest uppercase transform -rotate-12"
-                                style={{ opacity: settings.watermarkOpacity }}
-                              >
-                                {settings.watermarkText}
+                              <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                                <div
+                                  className="w-full h-full flex items-center justify-center select-none font-bold text-xs tracking-widest uppercase transform -rotate-12"
+                                  style={{ opacity: settings.watermarkOpacity }}
+                                >
+                                  {settings.watermarkText}
+                                </div>
                               </div>
                             )}
 

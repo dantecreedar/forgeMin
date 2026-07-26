@@ -203,7 +203,7 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
           return (
             <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
               <div
-                className={`max-w-[92%] px-4 py-3 rounded-2xl text-xs leading-relaxed relative overflow-hidden transition-all ${
+                className={`max-w-[92%] px-4 py-3 rounded-2xl text-xs leading-relaxed relative transition-all ${
                   isUser
                     ? 'bg-primary text-white rounded-br-none shadow-xs'
                     : `${activeTheme.bg} ${activeTheme.text} ${activeTheme.border} rounded-bl-none`
@@ -211,11 +211,13 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
               >
                 {/* Watermark Overlay for Assistant Messages */}
                 {!isUser && settings.showWatermark && (
-                  <div
-                    className="absolute inset-0 flex items-center justify-center pointer-events-none select-none font-bold text-[10px] tracking-widest uppercase transform -rotate-12"
-                    style={{ opacity: settings.watermarkOpacity }}
-                  >
-                    {settings.watermarkText}
+                  <div className="absolute inset-0 rounded-2xl overflow-hidden pointer-events-none">
+                    <div
+                      className="w-full h-full flex items-center justify-center select-none font-bold text-[10px] tracking-widest uppercase transform -rotate-12"
+                      style={{ opacity: settings.watermarkOpacity }}
+                    >
+                      {settings.watermarkText}
+                    </div>
                   </div>
                 )}
 

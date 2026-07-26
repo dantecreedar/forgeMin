@@ -65,10 +65,10 @@ export function SendEmailDropdown({ defaultEmail, onSend, isSent }: SendEmailDro
       <AnimatePresence>
         {open && (
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 6 }}
+            initial={{ opacity: 0, scale: 0.95, y: -6 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 6 }}
-            className="absolute right-0 mt-2 w-72 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-800 p-3.5 z-50 text-xs"
+            exit={{ opacity: 0, scale: 0.95, y: -6 }}
+            className="absolute bottom-full right-0 mb-2 w-72 bg-slate-900 text-white rounded-2xl shadow-2xl border border-slate-800 p-3.5 z-50 text-xs"
           >
             {/* Header */}
             <div className="flex items-center justify-between pb-2.5 border-b border-slate-800 mb-3">
