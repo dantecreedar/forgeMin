@@ -615,30 +615,12 @@ export function DrivePickerModal({ isOpen, onClose, onImportSuccess, onExplainDo
 
                   {/* Action Buttons Footer */}
                   <div className="flex items-center justify-end gap-3 pt-2 shrink-0">
-                    {onExplainDocument && (
-                      <button
-                        onClick={handleExplainAction}
-                        disabled={!isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04')}
-                        className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
-                      >
-                        <HelpCircle size={15} /> Explicar con IA
-                      </button>
-                    )}
-
                     <button
-                      onClick={handleConfirmImport}
-                      disabled={imported || !isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04')}
-                      className="bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-4 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
+                      onClick={onExplainDocument ? handleExplainAction : handleConfirmImport}
+                      disabled={!isSupportedFormat(readResult.metadata.mimeType, readResult.metadata.name) || readResult.content.startsWith('PK\x03\x04')}
+                      className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl px-5 py-2.5 text-xs font-bold flex items-center gap-2 transition-all shadow-md"
                     >
-                      {imported ? (
-                        <>
-                          <Check size={15} /> Importado al Contexto
-                        </>
-                      ) : (
-                        <>
-                          <Sparkles size={15} /> Usar como Contexto IA
-                        </>
-                      )}
+                      <Sparkles size={15} /> Explicar con IA
                     </button>
                   </div>
                 </motion.div>

@@ -1,13 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth-context';
-import { LogOut, LayoutDashboard, Folder, Target, FolderGit2, ChevronLeft, ChevronRight, Mail, Code2, ShieldCheck, ArrowLeftRight } from 'lucide-react';
+import { LogOut, LayoutDashboard, Folder, FolderGit2, ChevronLeft, ChevronRight, Mail, Code2, ShieldCheck, ArrowLeftRight, Settings, ChevronUp, Palette } from 'lucide-react';
 import { GlobalReportModal } from './global-report-modal';
-
 import { DeerIcon } from '../ui/deer-icon';
 
 const navItems = [
@@ -21,6 +20,8 @@ export function Sidebar() {
   const { user, logout, switchAuthMode, isDevMode } = useAuth();
   const [collapsed, setCollapsed] = useState(false);
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showProfileSubmenu, setShowProfileSubmenu] = useState(false);
+  const profileRef = useRef<HTMLDivElement>(null);
 
   const filteredNavItems = navItems.filter((item) => {
     if (item.requiresDev && !isDevMode) return false;
@@ -31,6 +32,20 @@ export function Sidebar() {
     const saved = localStorage.getItem('sidebar_collapsed');
     if (saved === 'true') setCollapsed(true);
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+        setShowProfileSubmenu(false);
+      }
+    }
+    if (showProfileSubmenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showProfileSubmenu]);
 
   const toggleCollapse = () => {
     const next = !collapsed;
@@ -136,66 +151,84 @@ export function Sidebar() {
           </div>
         </nav>
 
-        {/* Footer Profile, Mode Switch & Logout */}
-        <div className="px-2.5 py-3 border-t border-sidebar-border space-y-2">
-          {/* Active Mode Indicator & Switch Button */}
-          {!collapsed ? (
-            <div className={`p-2.5 rounded-xl border text-xs flex items-center justify-between gap-2 transition-all ${
-              isDevMode 
-                ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' 
-                : 'bg-blue-500/10 border-blue-500/20 text-blue-200'
-            }`}>
-              <div className="flex items-center gap-1.5 min-w-0">
-                {isDevMode ? <Code2 size={14} className="text-amber-400 shrink-0" /> : <ShieldCheck size={14} className="text-blue-400 shrink-0" />}
-                <span className="font-semibold truncate">
-                  {isDevMode ? 'Modo Dev' : 'Modo Gestión'}
-                </span>
-              </div>
-              <button
-                onClick={() => switchAuthMode(isDevMode ? 'google' : 'github')}
-                title={isDevMode ? 'Cerrar sesión e iniciar con Google (Modo Gestión)' : 'Cerrar sesión e iniciar con GitHub (Modo Dev)'}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[10px] font-bold text-white transition-all shrink-0 border border-white/10"
+        {/* Footer Profile with Interactive Submenu */}
+        <div className="px-2.5 py-3 border-t border-sidebar-border relative" ref={profileRef}>
+          {/* Profile Submenu Popover */}
+          <AnimatePresence>
+            {showProfileSubmenu && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="absolute bottom-full left-2.5 right-2.5 mb-2 bg-slate-900 text-white rounded-2xl p-2 shadow-2xl border border-slate-800 space-y-1 z-50 text-xs"
               >
-                <ArrowLeftRight size={10} />
-                <span>Ir a {isDevMode ? 'Gestión' : 'Dev'}</span>
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => switchAuthMode(isDevMode ? 'google' : 'github')}
-              className="w-full flex items-center justify-center p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white transition-all"
-              title={isDevMode ? 'Cambiar a Modo Gestión (Google)' : 'Cambiar a Modo Dev (GitHub)'}
-            >
-              <ArrowLeftRight size={16} />
-            </button>
-          )}
+                <div className="px-2 py-1.5 border-b border-slate-800 mb-1">
+                  <p className="font-semibold text-white truncate">{user?.displayName || 'Mi Perfil'}</p>
+                  <p className="text-[10px] text-slate-400 truncate">{user?.email}</p>
+                </div>
 
-          {user && (
-            <div className={`flex items-center gap-2.5 p-2 rounded-xl ${collapsed ? 'justify-center' : ''}`}>
-              {user.photoUrl ? (
-                <img src={user.photoUrl} alt="" className="w-7 h-7 rounded-full shrink-0" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-primary/40 text-white flex items-center justify-center text-xs font-bold shrink-0">
-                  {user.displayName?.charAt(0) || user.email?.charAt(0) || '?'}
+                <Link
+                  href="/settings"
+                  onClick={() => setShowProfileSubmenu(false)}
+                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-slate-800 transition-all font-medium"
+                >
+                  <Palette size={15} className="text-amber-400" />
+                  <span>Perfil y Diseño</span>
+                </Link>
+
+                <button
+                  onClick={() => {
+                    setShowProfileSubmenu(false);
+                    switchAuthMode(isDevMode ? 'google' : 'github');
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-slate-800 transition-all font-medium text-left"
+                >
+                  <ArrowLeftRight size={15} className="text-blue-400" />
+                  <span>Modo {isDevMode ? 'Gestión (Google)' : 'Dev (GitHub)'}</span>
+                </button>
+
+                <div className="pt-1 border-t border-slate-800">
+                  <button
+                    onClick={() => {
+                      setShowProfileSubmenu(false);
+                      logout();
+                    }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-rose-400 hover:bg-rose-500/10 transition-all font-medium text-left"
+                  >
+                    <LogOut size={15} />
+                    <span>Cerrar sesión</span>
+                  </button>
                 </div>
-              )}
-              {!collapsed && (
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-white truncate">{user.displayName || 'Usuario'}</p>
-                  <p className="text-[10px] text-white/50 truncate">{user.email}</p>
-                </div>
-              )}
-            </div>
-          )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Profile Card Button */}
           <button
-            onClick={logout}
-            className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs text-white/60 hover:text-white hover:bg-sidebar-accent/50 rounded-xl transition-colors ${
-              collapsed ? 'justify-center' : ''
-            }`}
-            title={collapsed ? 'Cerrar sesión' : undefined}
+            onClick={() => setShowProfileSubmenu(!showProfileSubmenu)}
+            className={`w-full flex items-center gap-2.5 p-2 rounded-xl hover:bg-white/10 transition-all text-left group border border-transparent hover:border-white/10 ${
+              showProfileSubmenu ? 'bg-white/10 border-white/15' : ''
+            } ${collapsed ? 'justify-center' : ''}`}
+            title="Opciones de perfil y diseño"
           >
-            <LogOut size={16} />
-            {!collapsed && <span>Cerrar sesión</span>}
+            {user?.photoUrl ? (
+              <img src={user.photoUrl} alt="" className="w-7 h-7 rounded-full shrink-0 border border-white/20" />
+            ) : (
+              <div className="w-7 h-7 rounded-full bg-primary/40 text-white flex items-center justify-center text-xs font-bold shrink-0 border border-white/20">
+                {user?.displayName?.charAt(0) || user?.email?.charAt(0) || '?'}
+              </div>
+            )}
+            {!collapsed && (
+              <>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold text-white truncate group-hover:text-amber-300 transition-colors">
+                    {user?.displayName || 'Usuario'}
+                  </p>
+                  <p className="text-[10px] text-white/60 truncate">{isDevMode ? 'Modo Dev' : 'Modo Gestión'}</p>
+                </div>
+                <ChevronUp size={14} className={`text-white/50 group-hover:text-white transition-transform ${showProfileSubmenu ? 'rotate-180' : ''}`} />
+              </>
+            )}
           </button>
         </div>
       </motion.aside>

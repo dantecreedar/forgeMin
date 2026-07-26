@@ -152,7 +152,12 @@ Return JSON with: tasks (array of {title, category, estimatedHours, dependencies
     question: string,
     context: unknown[],
   ): Promise<{ answer: string; relevantSources: string[] }> {
-    const prompt = `Answer the following question based on the project context.
+    const prompt = `Answer the following question based on the project context and documents.
+
+FORMAT RULES:
+- Present the answer in a clean, highly organized, and professional layout.
+- DO NOT use markdown headers or symbol clutter such as '###', '***', '---', or heavy asterisk lists like '* **Title:**'.
+- Use clean headings, paragraph spacing, and standard bullets (•).
 
 Question: ${question}
 
