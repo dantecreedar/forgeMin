@@ -41,3 +41,10 @@ FIREBASE_SERVICE_ACCOUNT_PATH=./service-account.json
 GITHUB_TOKEN=your-github-token
 GEMINI_API_KEY=your-gemini-api-key
 ```
+
+## Response & Communication Style
+
+- Keep responses highly organized, clear, and professional.
+- Avoid markdown symbol clutter: do NOT use `###`, `***`, `---` dividers, or excessive markdown formatting symbols.
+- Use clean formatting, plain structure, clean spacing, and simple bullet points or clear line breaks instead of raw symbol noise.
+
