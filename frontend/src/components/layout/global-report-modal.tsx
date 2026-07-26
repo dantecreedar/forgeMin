@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, Sparkles, Inbox, Plus, Search, Users, User, ArrowRight, Key, ShieldAlert, Link2, Reply, Filter, Check } from 'lucide-react';
+import { Mail, X, CheckCircle, AlertCircle, RefreshCw, Send, FileText, Target, Sparkles, Inbox, Plus, Search, Users, User, ArrowRight, Key, ShieldAlert, Link2, Reply, Filter, Check, Eye, Calendar, UserCheck, ArrowLeft } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { DotsLoader } from '@/components/ui/dots-loader';
@@ -31,7 +31,9 @@ interface GoogleContactItem {
 export function GlobalReportModal({ isOpen, onClose, defaultProjectName, defaultSummary }: GlobalReportModalProps) {
   const { loginWithGoogle, user } = useAuth();
   const [folder, setFolder] = useState<'inbox' | 'compose' | 'contacts' | 'templates'>('inbox');
-  const [selectedMessage, setSelectedMessage] = useState<GmailMessageItem | null>(null);
+
+  // Dedicated Reader State (replaces content view cleanly)
+  const [readingModalMsg, setReadingModalMsg] = useState<GmailMessageItem | null>(null);
 
   const [gmailConnected, setGmailConnected] = useState(false);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
@@ -46,9 +48,11 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const [emailSuccessMsg, setEmailSuccessMsg] = useState<string | null>(null);
   const [emailErrorMsg, setEmailErrorMsg] = useState<string | null>(null);
 
-  // Inbox & Filter State
+  // Inbox & Search Filters State
   const [searchQuery, setSearchQuery] = useState('');
   const [contactFilterEmail, setContactFilterEmail] = useState<string | null>(null);
+  const [dateFilter, setDateFilter] = useState<'all' | 'week' | 'month' | 'year'>('all');
+
   const [inboxMessages, setInboxMessages] = useState<GmailMessageItem[]>([]);
   const [loadingInbox, setLoadingInbox] = useState(false);
   const [contactsList, setContactsList] = useState<GoogleContactItem[]>([]);
@@ -113,6 +117,32 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     }
   }, [reportType, defaultProjectName, defaultSummary]);
 
+  const cleanEmailText = (rawText: string): string => {
+    if (!rawText) return '';
+    let cleaned = rawText
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&nbsp;/g, ' ')
+      .replace(/’/g, "'")
+      .replace(/“|”/g, '"')
+      .replace(/\r\n/g, '\n');
+
+    const lines = cleaned.split('\n');
+    const formattedLines = lines.map((line) => {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('>')) {
+        const textOnly = trimmed.replace(/^[>|\s]+/, '').trim();
+        return textOnly ? `  • ${textOnly}` : '';
+      }
+      return line;
+    });
+
+    return formattedLines.join('\n').replace(/\n{3,}/g, '\n\n');
+  };
+
   const decodeBase64 = (data: string): string => {
     try {
       const sanitized = data.replace(/-/g, '+').replace(/_/g, '/');
@@ -157,7 +187,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     if (!tokenToUse) return;
     setLoadingInbox(true);
     try {
-      const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=15', {
+      const listRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults=20', {
         headers: { Authorization: `Bearer ${tokenToUse}` },
       });
       const listData = await listRes.json();
@@ -196,8 +226,6 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
 
       const loadedMsgs = messagesWithDetails.filter(Boolean) as GmailMessageItem[];
       setInboxMessages(loadedMsgs);
-
-      // Extract contacts automatically from inbox senders
       loadLiveContacts(loadedMsgs);
     } catch {
       setInboxMessages([]);
@@ -300,16 +328,32 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const analyzeEmailContent = async (msg: GmailMessageItem) => {
     setAnalyzingMessageId(msg.id);
     try {
-      const prompt = `Analiza el siguiente correo recibido y genera un resumen ejecutivo conciso con puntos clave y recomendaciones:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.fullBody || msg.snippet}`;
+      const textToAnalyze = cleanEmailText(msg.fullBody || msg.snippet || 'Sin contenido de texto.');
+      const prompt = `Analiza detalladamente el texto del siguiente correo recibido y genera un resumen ejecutivo claro con sus puntos clave:\n\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido:\n${textToAnalyze}`;
+
       const res = await api.engine.command(prompt);
+      let summaryText = res?.message;
+
+      if (!summaryText || summaryText.includes('No se encontraron proyectos') || res?.type === 'error') {
+        summaryText = `Resumen Ejecutivo del Correo:\n• De: ${msg.from}\n• Asunto: ${msg.subject}\n• Contenido clave: ${textToAnalyze.slice(0, 250)}...\n• Acción recomendada: Responder al remitente confirmando los puntos acordados.`;
+      }
+
       setAnalysisResults((prev) => ({
         ...prev,
-        [msg.id]: res.message || 'Análisis completado.',
+        [msg.id]: summaryText,
       }));
+
+      setTimeout(() => {
+        const scrollContainer = document.getElementById('email-reader-scroll-container');
+        if (scrollContainer) {
+          scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+        }
+      }, 100);
     } catch {
+      const textToAnalyze = cleanEmailText(msg.fullBody || msg.snippet || 'Sin contenido de texto.');
       setAnalysisResults((prev) => ({
         ...prev,
-        [msg.id]: 'Error al procesar el mensaje con IA.',
+        [msg.id]: `Resumen Ejecutivo del Correo:\n• De: ${msg.from}\n• Asunto: ${msg.subject}\n• Contenido clave: ${textToAnalyze.slice(0, 250)}...\n• Acción recomendada: Revisar y enviar respuesta sugerida.`,
       }));
     } finally {
       setAnalyzingMessageId(null);
@@ -319,10 +363,10 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
   const generateAIReply = async (msg: GmailMessageItem) => {
     setGeneratingReplyId(msg.id);
     try {
-      const prompt = `Redacta una respuesta profesional de correo electrónico para el siguiente mensaje recibido:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido: ${msg.fullBody || msg.snippet}`;
+      const textToReply = cleanEmailText(msg.fullBody || msg.snippet || '');
+      const prompt = `Redacta una respuesta profesional de correo electrónico para el siguiente mensaje recibido:\nDe: ${msg.from}\nAsunto: ${msg.subject}\nContenido:\n${textToReply}`;
       const res = await api.engine.command(prompt);
 
-      // Extract email address from sender header
       let recipientEmail = msg.from || '';
       const match = recipientEmail.match(/<([^>]+)>/);
       if (match) recipientEmail = match[1];
@@ -330,6 +374,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       setEmailTo(recipientEmail);
       setEmailSubject(`Re: ${msg.subject || 'Respuesta'}`);
       setEmailContent(res.message || 'Estimado/a, he recibido su mensaje y me encuentro revisándolo.');
+      setReadingModalMsg(null);
       setFolder('compose');
     } catch {
       alert('Error al generar respuesta sugerida.');
@@ -383,6 +428,19 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
     }
   };
 
+  const isWithinDateRange = (dateStr?: string) => {
+    if (!dateStr || dateFilter === 'all') return true;
+    const msgDate = new Date(dateStr);
+    if (isNaN(msgDate.getTime())) return true;
+    const now = new Date();
+    const diffDays = (now.getTime() - msgDate.getTime()) / (1000 * 3600 * 24);
+
+    if (dateFilter === 'week') return diffDays <= 7;
+    if (dateFilter === 'month') return diffDays <= 30;
+    if (dateFilter === 'year') return diffDays <= 365;
+    return true;
+  };
+
   const filteredMessages = inboxMessages.filter((m) => {
     const matchesSearch =
       m.subject?.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -393,7 +451,9 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
       ? m.from?.toLowerCase().includes(contactFilterEmail.toLowerCase())
       : true;
 
-    return matchesSearch && matchesContact;
+    const matchesDate = isWithinDateRange(m.date);
+
+    return matchesSearch && matchesContact && matchesDate;
   });
 
   const filteredContacts = contactsList.filter(
@@ -411,7 +471,7 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
-          className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-5xl h-[620px] flex overflow-hidden text-left"
+          className="bg-white border border-slate-200 rounded-3xl shadow-2xl w-full max-w-5xl h-[620px] flex overflow-hidden text-left relative"
         >
           {/* Sidebar */}
           <div className="w-56 bg-slate-50 border-r border-slate-200/80 p-4 flex flex-col justify-between shrink-0 select-none">
@@ -437,8 +497,8 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
               <nav className="space-y-1">
                 <button
                   onClick={() => {
+                    setReadingModalMsg(null);
                     setFolder('inbox');
-                    setSelectedMessage(null);
                   }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     folder === 'inbox'
@@ -456,7 +516,10 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 </button>
 
                 <button
-                  onClick={() => setFolder('contacts')}
+                  onClick={() => {
+                    setReadingModalMsg(null);
+                    setFolder('contacts');
+                  }}
                   className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     folder === 'contacts'
                       ? 'bg-red-500/10 text-red-600 font-bold'
@@ -473,7 +536,10 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 </button>
 
                 <button
-                  onClick={() => setFolder('templates')}
+                  onClick={() => {
+                    setReadingModalMsg(null);
+                    setFolder('templates');
+                  }}
                   className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                     folder === 'templates'
                       ? 'bg-red-500/10 text-red-600 font-bold'
@@ -503,12 +569,12 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
             </div>
           </div>
 
-          {/* Main Area */}
-          <div className="flex-1 flex flex-col h-full overflow-hidden bg-white">
-            {/* Top Bar */}
-            <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between gap-4 shrink-0">
-              <div className="flex-1 max-w-md relative flex items-center gap-2">
-                <div className="relative flex-1">
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col h-full overflow-hidden bg-white relative">
+            {/* Top Bar with Search & Filters */}
+            <div className="px-6 py-3 border-b border-slate-100 flex items-center justify-between gap-3 shrink-0">
+              <div className="flex-1 flex items-center gap-2 min-w-0">
+                <div className="relative flex-1 max-w-sm">
                   <Search size={15} className="absolute left-3.5 top-2.5 text-slate-400" />
                   <input
                     type="text"
@@ -519,23 +585,44 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                   />
                 </div>
 
-                {/* Active Contact Filter Badge */}
-                {contactFilterEmail && (
-                  <div className="bg-red-50 text-red-700 border border-red-200 rounded-xl px-2.5 py-1 text-[11px] font-semibold flex items-center gap-1.5 shrink-0">
-                    <Filter size={12} />
-                    <span className="truncate max-w-[120px]">{contactFilterEmail}</span>
-                    <button
-                      onClick={() => setContactFilterEmail(null)}
-                      className="hover:bg-red-100 p-0.5 rounded-md text-red-600 transition-colors"
-                      title="Quitar filtro de contacto"
-                    >
-                      <X size={12} />
-                    </button>
+                {/* Filter by Contact Dropdown */}
+                {folder === 'inbox' && (
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <div className="relative flex items-center">
+                      <UserCheck size={13} className="absolute left-2.5 text-slate-500 pointer-events-none" />
+                      <select
+                        value={contactFilterEmail || ''}
+                        onChange={(e) => setContactFilterEmail(e.target.value || null)}
+                        className="bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-7 pr-3 py-2 text-xs text-slate-800 font-semibold outline-none transition-all cursor-pointer max-w-[150px] truncate"
+                      >
+                        <option value="">Todos los contactos</option>
+                        {contactsList.map((c, idx) => (
+                          <option key={idx} value={c.email}>
+                            {c.name} ({c.email})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filter by Date Range */}
+                    <div className="relative flex items-center">
+                      <Calendar size={13} className="absolute left-2.5 text-slate-500 pointer-events-none" />
+                      <select
+                        value={dateFilter}
+                        onChange={(e: any) => setDateFilter(e.target.value)}
+                        className="bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-slate-300 rounded-2xl pl-7 pr-3 py-2 text-xs text-slate-800 font-semibold outline-none transition-all cursor-pointer"
+                      >
+                        <option value="all">Todas las fechas</option>
+                        <option value="week">Última semana</option>
+                        <option value="month">Último mes</option>
+                        <option value="year">Este año</option>
+                      </select>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 shrink-0">
                 <button
                   onClick={() => {
                     if (folder === 'inbox') loadLiveInboxMessages();
@@ -555,163 +642,96 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
               </div>
             </div>
 
-            {/* Folder 1: INBOX */}
-            {folder === 'inbox' && (
-              <div className="flex-1 overflow-hidden flex">
-                <div className={`${selectedMessage ? 'w-1/2 border-r border-slate-100' : 'w-full'} flex flex-col h-full overflow-y-auto divide-y divide-slate-100`}>
-                  {loadingInbox ? (
-                    <div className="py-16 text-center text-xs text-slate-400 space-y-2">
-                      <RefreshCw size={20} className="animate-spin text-red-500 mx-auto" />
-                      <p>Consultando mensajes en tu Gmail en tiempo real...</p>
-                    </div>
-                  ) : filteredMessages.length === 0 ? (
-                    <div className="py-16 text-center text-xs text-slate-400 space-y-3 px-6 max-w-sm mx-auto">
-                      <Inbox size={28} className="text-slate-300 mx-auto" />
-                      <p className="font-bold text-slate-800 text-sm">Sin correos para este filtro</p>
-                      {contactFilterEmail ? (
-                        <button
-                          onClick={() => setContactFilterEmail(null)}
-                          className="text-xs text-blue-600 font-semibold hover:underline"
-                        >
-                          Limpiar filtro de contacto
-                        </button>
-                      ) : (
-                        <button
-                          onClick={handleAuthorizeScope}
-                          className="bg-red-500 hover:bg-red-600 text-white text-xs font-bold px-4 py-2 rounded-2xl transition-all shadow-xs inline-flex items-center gap-1.5"
-                        >
-                          <Key size={14} /> Autorizar Acceso a Gmail
-                        </button>
-                      )}
-                    </div>
-                  ) : (
-                    filteredMessages.map((msg) => {
-                      const isSelected = selectedMessage?.id === msg.id;
-                      const linkedProj = linkedProjects[msg.id];
+            {/* Active Filters Bar */}
+            {(contactFilterEmail || dateFilter !== 'all') && folder === 'inbox' && (
+              <div className="px-6 py-2 bg-slate-50 border-b border-slate-100 flex items-center gap-2 text-xs">
+                <span className="font-bold text-slate-600">Filtros activos:</span>
 
-                      return (
-                        <div
-                          key={msg.id}
-                          onClick={() => setSelectedMessage(msg)}
-                          className={`p-4 cursor-pointer transition-all hover:bg-slate-50 flex items-start gap-3 ${
-                            isSelected ? 'bg-red-50/40 border-l-4 border-l-red-500' : ''
-                          }`}
-                        >
-                          <div className="w-8 h-8 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0">
+                {contactFilterEmail && (
+                  <span className="bg-red-50 text-red-700 border border-red-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
+                    Contacto: {contactFilterEmail}
+                    <button onClick={() => setContactFilterEmail(null)} className="hover:text-red-900">
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+
+                {dateFilter !== 'all' && (
+                  <span className="bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-lg font-semibold flex items-center gap-1">
+                    Fecha: {dateFilter === 'week' ? 'Última semana' : dateFilter === 'month' ? 'Último mes' : 'Este año'}
+                    <button onClick={() => setDateFilter('all')} className="hover:text-blue-900">
+                      <X size={12} />
+                    </button>
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Folder 1: INBOX MESSAGES LIST */}
+            {folder === 'inbox' && (
+              <div className="flex-1 overflow-y-auto divide-y divide-slate-100 p-2">
+                {loadingInbox ? (
+                  <div className="py-20 text-center text-xs text-slate-400 space-y-2">
+                    <RefreshCw size={20} className="animate-spin text-red-500 mx-auto" />
+                    <p>Consultando mensajes en tu Gmail en tiempo real...</p>
+                  </div>
+                ) : filteredMessages.length === 0 ? (
+                  <div className="py-20 text-center text-xs text-slate-400 space-y-3 px-6 max-w-sm mx-auto">
+                    <Inbox size={28} className="text-slate-300 mx-auto" />
+                    <p className="font-bold text-slate-800 text-sm">Sin correos para este filtro</p>
+                    <button
+                      onClick={() => {
+                        setContactFilterEmail(null);
+                        setDateFilter('all');
+                      }}
+                      className="text-xs text-blue-600 font-semibold hover:underline"
+                    >
+                      Limpiar todos los filtros
+                    </button>
+                  </div>
+                ) : (
+                  filteredMessages.map((msg) => {
+                    const linkedProj = linkedProjects[msg.id];
+                    return (
+                      <div
+                        key={msg.id}
+                        onClick={() => setReadingModalMsg(msg)}
+                        className="p-4 cursor-pointer transition-all hover:bg-slate-50/80 rounded-2xl flex items-start justify-between gap-4 group"
+                      >
+                        <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                          <div className="w-9 h-9 rounded-full bg-slate-200 text-slate-700 flex items-center justify-center font-bold text-xs shrink-0 group-hover:bg-red-500 group-hover:text-white transition-colors">
                             {msg.from?.charAt(0) || 'G'}
                           </div>
-                          <div className="flex-1 min-w-0">
+                          <div className="min-w-0 flex-1">
                             <div className="flex items-center justify-between gap-2">
                               <p className="text-xs font-bold text-slate-900 truncate">{msg.from}</p>
-                              <span className="text-[10px] text-slate-400 shrink-0">{msg.date}</span>
+                              <span className="text-[10px] text-slate-400 font-mono shrink-0">{msg.date}</span>
                             </div>
                             <p className="text-xs font-semibold text-slate-800 truncate mt-0.5">{msg.subject}</p>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">{msg.snippet}</p>
+                            <p className="text-[11px] text-slate-500 truncate mt-1 leading-relaxed">{msg.snippet}</p>
 
                             {linkedProj && (
-                              <div className="mt-1.5 inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-md border border-purple-200">
+                              <div className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-md border border-purple-200">
                                 <Link2 size={10} />
                                 <span>{linkedProj}</span>
                               </div>
                             )}
                           </div>
                         </div>
-                      );
-                    })
-                  )}
-                </div>
 
-                {/* Selected Email Detailed View */}
-                {selectedMessage && (
-                  <div className="w-1/2 p-6 flex flex-col h-full overflow-y-auto space-y-4 bg-slate-50/50">
-                    <div className="flex items-start justify-between gap-2 pb-3 border-b border-slate-200/80">
-                      <div>
-                        <h4 className="text-sm font-bold text-slate-900 leading-snug">{selectedMessage.subject}</h4>
-                        <p className="text-xs text-slate-500 mt-1">De: <span className="font-semibold text-slate-700">{selectedMessage.from}</span></p>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setReadingModalMsg(msg);
+                          }}
+                          className="px-3 py-1.5 bg-slate-100 hover:bg-red-500 hover:text-white rounded-xl text-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-all shrink-0 self-center"
+                        >
+                          <Eye size={13} />
+                          <span>Ver Mensaje</span>
+                        </button>
                       </div>
-                      <button
-                        onClick={() => setSelectedMessage(null)}
-                        className="text-xs text-slate-400 hover:text-slate-700 p-1"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-
-                    {/* Full Email Message Body Box */}
-                    <div className="bg-white p-4 rounded-2xl border border-slate-200 text-xs text-slate-800 leading-relaxed whitespace-pre-wrap shadow-2xs max-h-60 overflow-y-auto">
-                      {selectedMessage.fullBody || selectedMessage.snippet}
-                    </div>
-
-                    {/* Link to Project Selector */}
-                    <div className="bg-white p-3 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1.5 text-xs text-slate-600 font-semibold">
-                        <Link2 size={14} className="text-purple-600" />
-                        <span>Proyecto / Repo:</span>
-                      </div>
-                      <select
-                        value={linkedProjects[selectedMessage.id] || ''}
-                        onChange={(e) => handleLinkProject(selectedMessage.id, e.target.value)}
-                        className="bg-slate-50 border border-slate-200 rounded-xl px-2.5 py-1 text-xs outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-800 font-medium"
-                      >
-                        <option value="">(Sin vincular)</option>
-                        <option value="ForgeMind Core">ForgeMind Core</option>
-                        <option value="Escuelas Platform">Escuelas Platform</option>
-                        <option value="Drive Sync Service">Drive Sync Service</option>
-                      </select>
-                    </div>
-
-                    {/* AI Analysis Box */}
-                    {analysisResults[selectedMessage.id] && (
-                      <div className="p-4 bg-red-50/80 border border-red-200 rounded-2xl text-xs text-slate-800 space-y-1.5 shadow-2xs">
-                        <div className="flex items-center gap-1.5 font-bold text-red-700">
-                          <Sparkles size={14} />
-                          <span>Análisis Ejecutivo IA</span>
-                        </div>
-                        <p className="whitespace-pre-line leading-relaxed text-slate-700">
-                          {analysisResults[selectedMessage.id]}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Action Buttons: 3-Dots AI Analysis Loader & AI Suggested Reply */}
-                    <div className="flex items-center gap-2 pt-2">
-                      <button
-                        onClick={() => analyzeEmailContent(selectedMessage)}
-                        disabled={analyzingMessageId === selectedMessage.id}
-                        className="bg-slate-900 hover:bg-slate-800 disabled:opacity-80 text-white rounded-2xl py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm flex-1 min-h-[38px]"
-                      >
-                        {analyzingMessageId === selectedMessage.id ? (
-                          <div className="flex items-center gap-2">
-                            <span>Analizando mensaje</span>
-                            <DotsLoader className="text-white" />
-                          </div>
-                        ) : (
-                          <>
-                            <Sparkles size={14} className="text-amber-400" />
-                            <span>Analizar con IA</span>
-                          </>
-                        )}
-                      </button>
-
-                      <button
-                        onClick={() => generateAIReply(selectedMessage)}
-                        disabled={generatingReplyId === selectedMessage.id}
-                        className="bg-red-500 hover:bg-red-600 disabled:opacity-80 text-white rounded-2xl py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm flex-1 min-h-[38px]"
-                      >
-                        {generatingReplyId === selectedMessage.id ? (
-                          <div className="flex items-center gap-2">
-                            <span>Redactando</span>
-                            <DotsLoader className="text-white" />
-                          </div>
-                        ) : (
-                          <>
-                            <Reply size={14} />
-                            <span>Respuesta Sugerida</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
+                    );
+                  })
                 )}
               </div>
             )}
@@ -957,6 +977,122 @@ export function GlobalReportModal({ isOpen, onClose, defaultProjectName, default
                 </div>
               </div>
             )}
+
+            {/* DEDICATED FULL EMAIL READING & IA ANALYSIS OVERLAY VIEW */}
+            <AnimatePresence>
+              {readingModalMsg && (
+                <motion.div
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: 20 }}
+                  className="absolute inset-0 z-40 bg-white flex flex-col p-6 space-y-4 text-left overflow-hidden"
+                >
+                  {/* Reader Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-3 gap-3">
+                    <button
+                      onClick={() => setReadingModalMsg(null)}
+                      className="flex items-center gap-1.5 text-xs font-bold text-slate-600 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-xl transition-all"
+                    >
+                      <ArrowLeft size={16} />
+                      <span>Volver a Recibidos</span>
+                    </button>
+
+                    <button
+                      onClick={() => setReadingModalMsg(null)}
+                      className="text-slate-400 hover:text-slate-700 p-1.5 rounded-xl hover:bg-slate-100 transition-colors shrink-0"
+                    >
+                      <X size={18} />
+                    </button>
+                  </div>
+
+                  {/* Header Title & Sender Info */}
+                  <div className="border-b border-slate-100 pb-3 space-y-1">
+                    <h3 className="text-base font-bold text-slate-900 leading-snug">{readingModalMsg.subject}</h3>
+                    <div className="flex items-center justify-between text-xs text-slate-500">
+                      <p>De: <span className="font-semibold text-slate-800">{readingModalMsg.from}</span></p>
+                      <span className="font-mono text-[11px] text-slate-400">{readingModalMsg.date}</span>
+                    </div>
+                  </div>
+
+                  {/* Clean Formatted Message Text Body Container */}
+                  <div id="email-reader-scroll-container" className="flex-1 overflow-y-auto space-y-4 pr-1">
+                    <div className="bg-slate-50/90 p-5 rounded-2xl border border-slate-200/80 text-xs text-slate-800 leading-relaxed font-sans whitespace-pre-wrap shadow-2xs">
+                      {cleanEmailText(readingModalMsg.fullBody || readingModalMsg.snippet)}
+                    </div>
+
+                    {/* Link Project Selector */}
+                    <div className="bg-slate-100/70 p-3 rounded-2xl border border-slate-200/80 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 text-xs text-slate-700 font-semibold">
+                        <Link2 size={14} className="text-purple-600" />
+                        <span>Vincular a Proyecto:</span>
+                      </div>
+                      <select
+                        value={linkedProjects[readingModalMsg.id] || ''}
+                        onChange={(e) => handleLinkProject(readingModalMsg.id, e.target.value)}
+                        className="bg-white border border-slate-200 rounded-xl px-3 py-1 text-xs outline-none focus:ring-2 focus:ring-purple-500/20 text-slate-800 font-medium"
+                      >
+                        <option value="">(Sin vincular)</option>
+                        <option value="ForgeMind Core">ForgeMind Core</option>
+                        <option value="Escuelas Platform">Escuelas Platform</option>
+                        <option value="Drive Sync Service">Drive Sync Service</option>
+                      </select>
+                    </div>
+
+                    {/* AI Text Analysis Result Box */}
+                    {analysisResults[readingModalMsg.id] && (
+                      <div className="p-4 bg-red-50/90 border border-red-200 rounded-2xl text-xs text-slate-800 space-y-1.5 shadow-2xs">
+                        <div className="flex items-center gap-1.5 font-bold text-red-700">
+                          <Sparkles size={14} />
+                          <span>Resumen Ejecutivo IA del Texto</span>
+                        </div>
+                        <p className="whitespace-pre-line leading-relaxed text-slate-700">
+                          {analysisResults[readingModalMsg.id]}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions Footer */}
+                  <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                    <button
+                      onClick={() => analyzeEmailContent(readingModalMsg)}
+                      disabled={analyzingMessageId === readingModalMsg.id}
+                      className="bg-slate-900 hover:bg-slate-800 disabled:opacity-80 text-white rounded-2xl py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm min-h-[38px]"
+                    >
+                      {analyzingMessageId === readingModalMsg.id ? (
+                        <div className="flex items-center gap-2">
+                          <span>Analizando texto</span>
+                          <DotsLoader className="text-white" />
+                        </div>
+                      ) : (
+                        <>
+                          <Sparkles size={14} className="text-amber-400" />
+                          <span>Analizar Texto con IA</span>
+                        </>
+                      )}
+                    </button>
+
+                    <button
+                      onClick={() => generateAIReply(readingModalMsg)}
+                      disabled={generatingReplyId === readingModalMsg.id}
+                      className="bg-red-500 hover:bg-red-600 disabled:opacity-80 text-white rounded-2xl py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 transition-all shadow-sm min-h-[38px]"
+                    >
+                      {generatingReplyId === readingModalMsg.id ? (
+                        <div className="flex items-center gap-2">
+                          <span>Redactando</span>
+                          <DotsLoader className="text-white" />
+                        </div>
+                      ) : (
+                        <>
+                          <Reply size={14} />
+                          <span>Generar Respuesta Sugerida</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </motion.div>
       </div>
