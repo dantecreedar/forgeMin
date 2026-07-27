@@ -8,7 +8,8 @@ import { api } from '@/lib/api';
 import { 
   ArrowLeft, Edit3, Trash2, Plus, X, CheckCircle, Clock, AlertCircle, Target, 
   Sparkles, FolderGit2, RefreshCw, Link as LinkIcon, Table, LayoutGrid, Download, 
-  FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink, Mail, Send
+  FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink, Mail, Send,
+  Code2, ShieldAlert, Cpu, Check, Layers, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -32,6 +33,27 @@ export default function ProjectDetailPage() {
   const [loadingReadme, setLoadingReadme] = useState(false);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
+  const [architectureReport, setArchitectureReport] = useState<any>(null);
+  const [analyzingArchitecture, setAnalyzingArchitecture] = useState(false);
+  const [archError, setArchError] = useState<string | null>(null);
+  const [showAllCommits, setShowAllCommits] = useState(false);
+
+  const handleAnalyzeArchitecture = async () => {
+    setAnalyzingArchitecture(true);
+    setArchError(null);
+    try {
+      const res = await api.projects.analyzeArchitecture(id);
+      if (res.success && res.report) {
+        setArchitectureReport(res.report);
+      } else {
+        setArchError(res.message || 'Error al analizar la arquitectura.');
+      }
+    } catch (e: any) {
+      setArchError(e.message || 'Error de red al conectar con el servidor.');
+    } finally {
+      setAnalyzingArchitecture(false);
+    }
+  };
 
   // View mode: 'cards' vs 'excel'
   const [viewMode, setViewMode] = useState<'cards' | 'excel'>('cards');
@@ -459,6 +481,18 @@ export default function ProjectDetailPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-3">
+                  {connectedRepos.length > 0 && (
+                    <button
+                      onClick={handleAnalyzeArchitecture}
+                      disabled={analyzingArchitecture}
+                      className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs disabled:opacity-50"
+                      title="Analizar arquitectura y código fuente con IA"
+                    >
+                      <Code2 size={13} className={`text-indigo-600 ${analyzingArchitecture ? 'animate-spin' : ''}`} />
+                      <span>{analyzingArchitecture ? 'Analizando Código...' : 'Analizar Arquitectura'}</span>
+                    </button>
+                  )}
+
                   <button
                     onClick={openSendEmailModal}
                     className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 px-3 py-1.5 rounded-xl font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs"
@@ -644,6 +678,192 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
+        {/* Panel de Análisis de Arquitectura de Código Fuente */}
+        {archError && (
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-xs text-red-700 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <AlertCircle size={16} className="text-red-500 shrink-0" />
+              <span>{archError}</span>
+            </div>
+            <button onClick={() => setArchError(null)} className="text-red-500 hover:text-red-700"><X size={14} /></button>
+          </div>
+        )}
+
+        {architectureReport && (
+          <div className="bg-white border border-indigo-200 rounded-2xl p-6 shadow-sm space-y-5 text-left">
+            <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
+                  <Code2 size={18} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900">Informe de Arquitectura de Código Fuente</h3>
+                  <p className="text-[10px] text-slate-400">Generado mediante escaneo de archivos clave y estructura de repositorio con Gemini IA</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full">
+                  Patrón: {architectureReport.architecturePattern || 'N/A'}
+                </span>
+                <button
+                  onClick={() => setArchitectureReport(null)}
+                  className="text-slate-400 hover:text-slate-600 p-1"
+                  title="Cerrar informe"
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+
+            {/* Scores & Quick Metrics */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Mantenibilidad</span>
+                <p className="text-xl font-bold text-indigo-700 mt-1">{architectureReport.maintainabilityScore ?? 0}/100</p>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complejidad</span>
+                <p className="text-xl font-bold text-slate-700 mt-1">{architectureReport.complexityScore ?? 0}/100</p>
+              </div>
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Capas Detectadas</span>
+                <p className="text-xl font-bold text-slate-700 mt-1">{architectureReport.layers?.length || 0}</p>
+              </div>
+              <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 text-center">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Issues Detectados</span>
+                <p className="text-xl font-bold text-amber-700 mt-1">{architectureReport.issues?.length || 0}</p>
+              </div>
+            </div>
+
+            {/* Overview */}
+            {architectureReport.overview && (
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
+                  <Cpu size={14} className="text-indigo-600" /> Visión General de la Arquitectura
+                </h4>
+                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
+                  {architectureReport.overview}
+                </p>
+              </div>
+            )}
+
+            {/* Stack Tecnológico */}
+            {architectureReport.stack?.length > 0 && (
+              <div>
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Layers size={14} className="text-indigo-600" /> Stack Tecnológico Identificado
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {architectureReport.stack.map((item: any, idx: number) => (
+                    <span key={idx} className="text-xs bg-slate-100 border border-slate-200 text-slate-800 px-3 py-1 rounded-xl font-medium flex items-center gap-1.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
+                      <strong>{item.name}</strong>
+                      <span className="text-[10px] text-slate-500">({item.role})</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Issues de Arquitectura & Código */}
+            {architectureReport.issues?.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <AlertCircle size={14} className="text-amber-500" /> Problemas y Asuntos A Revisar
+                </h4>
+                <div className="space-y-2.5">
+                  {architectureReport.issues.map((issue: any, idx: number) => {
+                    const isHigh = issue.severity === 'high';
+                    const isMedium = issue.severity === 'medium';
+                    return (
+                      <div
+                        key={idx}
+                        className={`border rounded-xl p-3.5 space-y-1.5 text-xs ${
+                          isHigh
+                            ? 'bg-red-50/50 border-red-200 text-red-950'
+                            : isMedium
+                            ? 'bg-amber-50/50 border-amber-200 text-amber-950'
+                            : 'bg-slate-50 border-slate-200 text-slate-900'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-bold flex items-center gap-1.5">
+                            {isHigh ? '🔴' : isMedium ? '🟡' : '🟢'} {issue.title}
+                          </span>
+                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
+                            isHigh ? 'bg-red-100 text-red-700' : isMedium ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
+                          }`}>
+                            Prioridad {issue.severity}
+                          </span>
+                        </div>
+                        <p className="text-slate-700">{issue.description}</p>
+                        {issue.affectedFiles?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            <span className="text-[10px] font-semibold text-slate-500">Archivos:</span>
+                            {issue.affectedFiles.map((file: string, fIdx: number) => (
+                              <span key={fIdx} className="text-[10px] font-mono bg-white/80 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">
+                                {file}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                        {issue.recommendation && (
+                          <p className="text-[11px] font-medium text-indigo-700 bg-indigo-50/80 rounded-lg p-2 mt-1 border border-indigo-100">
+                            💡 <strong>Recomendación:</strong> {issue.recommendation}
+                          </p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Fortalezas y Recomendaciones Generales */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+              {architectureReport.strengths?.length > 0 && (
+                <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-3.5 space-y-1.5">
+                  <h5 className="text-xs font-bold text-emerald-900 flex items-center gap-1">
+                    <Check size={14} className="text-emerald-600" /> Fortalezas de la Arquitectura
+                  </h5>
+                  <ul className="space-y-1 text-xs text-emerald-800 pl-4 list-disc">
+                    {architectureReport.strengths.map((s: string, idx: number) => (
+                      <li key={idx}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {architectureReport.recommendations?.length > 0 && (
+                <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-3.5 space-y-1.5">
+                  <h5 className="text-xs font-bold text-indigo-900 flex items-center gap-1">
+                    <Sparkles size={14} className="text-indigo-600" /> Recomendaciones Generales
+                  </h5>
+                  <ul className="space-y-1 text-xs text-indigo-800 pl-4 list-disc">
+                    {architectureReport.recommendations.map((r: string, idx: number) => (
+                      <li key={idx}>{r}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            {/* Advertencias de Seguridad (si aplican) */}
+            {architectureReport.securityNotes?.length > 0 && (
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 space-y-1.5 text-xs text-red-900">
+                <h5 className="font-bold flex items-center gap-1 text-red-700">
+                  <ShieldAlert size={14} /> Observaciones de Seguridad
+                </h5>
+                <ul className="space-y-1 pl-4 list-disc text-red-800">
+                  {architectureReport.securityNotes.map((sec: string, idx: number) => (
+                    <li key={idx}>{sec}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Live Git Activity Graph & Development Timeline */}
         {(connectedRepos.length > 0 || gitActivity) && (
           <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
@@ -754,7 +974,9 @@ export default function ProjectDetailPage() {
                 </span>
               </p>
 
-              <div className="relative pl-6 space-y-3 border-l-2 border-gradient-to-b from-purple-500 to-indigo-500">
+              <div className={`relative pl-6 space-y-3 border-l-2 border-gradient-to-b from-purple-500 to-indigo-500 transition-all duration-300 ${
+                showAllCommits ? 'max-h-[420px] overflow-y-auto pr-2 custom-scrollbar' : ''
+              }`}>
                 {/* Active Working Tree Node (Local Uncommitted Work) */}
                 {gitActivity?.localStatus?.hasUncommittedChanges && (
                   <motion.div
@@ -781,7 +1003,7 @@ export default function ProjectDetailPage() {
 
                 {/* Commit History Flow Nodes */}
                 {gitActivity?.commits && gitActivity.commits.length > 0 ? (
-                  gitActivity.commits.map((commit: any, idx: number) => (
+                  (showAllCommits ? gitActivity.commits : gitActivity.commits.slice(0, 3)).map((commit: any, idx: number) => (
                     <motion.div
                       key={commit.sha || idx}
                       initial={{ opacity: 0, x: -10 }}
@@ -836,6 +1058,23 @@ export default function ProjectDetailPage() {
                   </p>
                 ) : null}
               </div>
+
+              {/* Botón Ver más / Ver menos con Scroll estilizado */}
+              {gitActivity?.commits && gitActivity.commits.length > 3 && (
+                <div className="pt-2 text-center border-t border-slate-100">
+                  <button
+                    onClick={() => setShowAllCommits(!showAllCommits)}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-4 py-1.5 rounded-full transition-all shadow-2xs group"
+                  >
+                    <span>{showAllCommits ? 'Ver menos commits' : `Ver más (${gitActivity.commits.length - 3} adicionales)`}</span>
+                    {showAllCommits ? (
+                      <ChevronUp size={14} className="group-hover:-translate-y-0.5 transition-transform" />
+                    ) : (
+                      <ChevronDown size={14} className="group-hover:translate-y-0.5 transition-transform" />
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

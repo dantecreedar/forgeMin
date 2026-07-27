@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Octokit } from '@octokit/rest';
-import { IGitHubClient } from './github-client.interface';
+import { IGitHubClient, IRepoFile, IRepoTreeItem } from './github-client.interface';
 import { IBranch, ICommit, IPullRequest, IIssue, IRelease, IGitHubRepo } from '../../domain/repository/github-data.entity';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -196,9 +196,61 @@ export class GitHubClientService implements IGitHubClient {
   }
 
 
-  private async getDefaultBranch(owner: string, repo: string): Promise<string> {
+  private getOctokit(userToken?: string): Octokit {
+    const activeToken = userToken || process.env.GITHUB_TOKEN || process.env.GITHUB_API;
+    return activeToken ? new Octokit({ auth: activeToken }) : this.octokit;
+  }
 
-    const { data } = await this.octokit.repos.get({ owner, repo });
-    return data.default_branch;
+  async getRepositoryTree(owner: string, repo: string, branch?: string, userToken?: string): Promise<IRepoTreeItem[]> {
+    const octokit = this.getOctokit(userToken);
+    const sha = branch ?? (await this.getDefaultBranch(owner, repo, userToken));
+    try {
+      const { data } = await octokit.git.getTree({
+        owner,
+        repo,
+        tree_sha: sha,
+        recursive: '1',
+      });
+      return (data.tree || [])
+        .filter((item) => item.path && item.sha && item.type)
+        .map((item) => ({
+          path: item.path as string,
+          type: item.type as 'blob' | 'tree',
+          size: item.size,
+          sha: item.sha as string,
+        }));
+    } catch (err) {
+      console.error(`[getRepositoryTree Error] ${owner}/${repo} (${sha}):`, err);
+      return [];
+    }
+  }
+
+  async getFileContent(owner: string, repo: string, path: string, userToken?: string): Promise<IRepoFile | null> {
+    const octokit = this.getOctokit(userToken);
+    try {
+      const { data } = await octokit.repos.getContent({ owner, repo, path });
+      if ('content' in data && data.content && data.type === 'file') {
+        const content = Buffer.from(data.content, 'base64').toString('utf-8');
+        return {
+          path,
+          content,
+          size: data.size ?? 0,
+        };
+      }
+      return null;
+    } catch (err) {
+      console.error(`[getFileContent Error] ${owner}/${repo}/${path}:`, err);
+      return null;
+    }
+  }
+
+  private async getDefaultBranch(owner: string, repo: string, userToken?: string): Promise<string> {
+    const octokit = this.getOctokit(userToken);
+    try {
+      const { data } = await octokit.repos.get({ owner, repo });
+      return data.default_branch || 'main';
+    } catch {
+      return 'main';
+    }
   }
 }

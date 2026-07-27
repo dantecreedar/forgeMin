@@ -23,6 +23,7 @@ import { ReleaseNotesEngineService } from './application/analysis/release-notes.
 import { SprintPlannerService } from './application/analysis/sprint-planner.service';
 import { KnowledgeBaseService } from './application/analysis/knowledge-base.service';
 import { NotificationEngineService } from './application/analysis/notification-engine.service';
+import { CodebaseAnalyzerService } from './application/analysis/codebase-analyzer.service';
 import { ChatService } from './application/chat/chat.service';
 
 import { AuthController } from './presentation/controllers/auth.controller';
@@ -123,6 +124,7 @@ const firestoreProviders = [
     SprintPlannerService,
     KnowledgeBaseService,
     NotificationEngineService,
+    CodebaseAnalyzerService,
     DeepSeekService,
     ChatService,
     EngineService,

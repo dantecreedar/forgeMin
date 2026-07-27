@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Patch, Body, Param, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Delete, Headers } from '@nestjs/common';
 import { ProjectApplicationService } from '../../application/project/project.service';
 import { SyncEngineService } from '../../application/analysis/sync-engine.service';
 import { AIEngineService } from '../../application/analysis/ai-engine.service';
 import { RepositoryApplicationService } from '../../application/repository/repository.service';
 import { ObjectiveApplicationService } from '../../application/objective/objective.service';
+import { CodebaseAnalyzerService } from '../../application/analysis/codebase-analyzer.service';
 
 import { Inject } from '@nestjs/common';
 import { GITHUB_CLIENT, IGitHubClient } from '../../infrastructure/github/github-client.interface';
@@ -25,6 +26,7 @@ export class ProjectController {
     private readonly aiEngineService: AIEngineService,
     private readonly repositoryService: RepositoryApplicationService,
     private readonly objectiveService: ObjectiveApplicationService,
+    private readonly codebaseAnalyzerService: CodebaseAnalyzerService,
     @Inject(GITHUB_CLIENT) private readonly githubClient: IGitHubClient,
     private readonly geminiService: GeminiService,
     private readonly localGitService: LocalGitService,
@@ -44,6 +46,25 @@ export class ProjectController {
     }
     const analyses = await this.aiEngineService.analyzeAllObjectives(id);
     return { success: true, analyses };
+  }
+
+  @Post(':id/analyze-architecture')
+  async analyzeArchitecture(
+    @Param('id') id: string,
+    @Headers('x-github-token') userGithubToken?: string,
+  ) {
+    const repos = await this.repositoryService.findByProjectId(id);
+    if (repos.length === 0) {
+      return { success: false, message: 'No hay repositorio de GitHub vinculado a este proyecto.' };
+    }
+    const repo = repos[0];
+    const report = await this.codebaseAnalyzerService.analyzeCodebase(
+      repo.owner,
+      repo.name,
+      repo.defaultBranch,
+      userGithubToken,
+    );
+    return { success: true, report, repoName: repo.fullName };
   }
 
   @Get(':id/readme')

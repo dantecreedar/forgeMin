@@ -108,6 +108,8 @@ export const api = {
       fetch(`${API_BASE}/projects/${id}/readme-summary`, { headers: getHeaders() }).then(handleResponse),
     analyze: (id: string) =>
       fetch(`${API_BASE}/projects/${id}/analyze`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
+    analyzeArchitecture: (id: string) =>
+      fetch(`${API_BASE}/projects/${id}/analyze-architecture`, { method: 'POST', headers: getHeaders() }).then(handleResponse),
   },
   objectives: {
     list: (projectId: string) =>
@@ -140,7 +142,7 @@ export const api = {
           ? arg1
           : { projectId: arg1, githubRepoUrl, name, defaultBranch, branches };
 
-      return fetch(`${API_BASE}/repositories`, {
+      return fetch(`${API_BASE}/repositories/connect`, {
         method: 'POST',
         headers: getHeaders(),
         body: JSON.stringify(bodyPayload),

@@ -33,6 +33,27 @@ export interface ChatResponse {
   reply: string;
 }
 
+export interface ArchitectureIssue {
+  severity: 'high' | 'medium' | 'low';
+  title: string;
+  description: string;
+  affectedFiles: string[];
+  recommendation: string;
+}
+
+export interface CodebaseAnalysisResult {
+  overview: string;
+  stack: Array<{ name: string; role: string; version?: string }>;
+  architecturePattern: string;
+  layers: Array<{ name: string; description: string; fileCount: number }>;
+  strengths: string[];
+  issues: ArchitectureIssue[];
+  recommendations: string[];
+  securityNotes: string[];
+  complexityScore: number;
+  maintainabilityScore: number;
+}
+
 @Injectable()
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
@@ -193,6 +214,76 @@ Determine the most appropriate status based on the evidence:
 - blocked: issues or PRs indicating problems
 
 Return JSON with: status, progress (0-100), summary, risks[], blockers[], nextSteps[]`;
+  }
+
+  async analyzeCodebaseArchitecture(
+    files: Array<{ path: string; content: string }>,
+    fullTree: string[],
+  ): Promise<CodebaseAnalysisResult> {
+    const filesBlock = files
+      .map((f) => `=== ARCHIVO: ${f.path} ===\n${f.content.slice(0, 3000)}`)
+      .join('\n\n');
+
+    const prompt = `Eres un arquitecto de software senior. Analiza el código fuente de este repositorio y genera un informe técnico detallado en español.
+
+Árbol de archivos del repositorio (estructura completa):
+${fullTree.join('\n')}
+
+Contenido de archivos clave:
+${filesBlock}
+
+Genera el análisis y responde ÚNICAMENTE con un JSON válido con este formato exacto (sin markdown, sin texto extra):
+{
+  "overview": "Descripción ejecutiva de la arquitectura en 2-3 párrafos",
+  "stack": [
+    { "name": "NestJS", "role": "Backend Framework", "version": "10.x" }
+  ],
+  "architecturePattern": "Clean Architecture / MVC / Microservices / Monolito / etc.",
+  "layers": [
+    { "name": "Domain", "description": "Contiene entidades y contratos de repositorio", "fileCount": 12 }
+  ],
+  "strengths": ["Fortaleza 1", "Fortaleza 2"],
+  "issues": [
+    {
+      "severity": "high",
+      "title": "Título conciso del problema",
+      "description": "Descripción del problema encontrado en el código",
+      "affectedFiles": ["src/archivo.ts"],
+      "recommendation": "Acción concreta para resolver el problema"
+    }
+  ],
+  "recommendations": ["Recomendación 1", "Recomendación 2"],
+  "securityNotes": ["Nota de seguridad si existe, sino array vacío"],
+  "complexityScore": 70,
+  "maintainabilityScore": 75
+}
+
+Reglas:
+- complexityScore y maintainabilityScore son números del 1 al 100
+- Reporta issues reales encontrados en el código, no genéricos
+- Si no hay problemas de seguridad, devuelve securityNotes: []
+- El overview debe ser técnico y ejecutivo a la vez
+- Detecta al menos 3 issues si existen en el código`;
+
+    const result = await this.model.generateContent(prompt);
+    const responseText = result.response.text();
+    try {
+      return this.parseStructuredJson<CodebaseAnalysisResult>(responseText);
+    } catch {
+      // Fallback with basic structure if Gemini returns malformed JSON
+      return {
+        overview: responseText.slice(0, 500),
+        stack: [],
+        architecturePattern: 'No determinado',
+        layers: [],
+        strengths: [],
+        issues: [],
+        recommendations: [],
+        securityNotes: [],
+        complexityScore: 0,
+        maintainabilityScore: 0,
+      };
+    }
   }
 
   private parseStructuredJson<T>(text: string): T {
