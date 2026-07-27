@@ -39,6 +39,11 @@ export default function ProjectDetailPage() {
   const [archError, setArchError] = useState<string | null>(null);
   const [showAllCommits, setShowAllCommits] = useState(false);
 
+  // Focus Mode
+  const [isFocusMode, setIsFocusMode] = useState(false);
+  const archCardRef = useRef<HTMLDivElement>(null);
+  const analyzeButtonRef = useRef<HTMLButtonElement>(null);
+
   // Architecture Modal & Feature States
   const [showArchModal, setShowArchModal] = useState(false);
   const [archDocMode, setArchDocMode] = useState(false);
@@ -47,16 +52,22 @@ export default function ProjectDetailPage() {
 
   const handleAnalyzeArchitecture = async () => {
     setAnalyzingArchitecture(true);
+    setIsFocusMode(true);
     setArchError(null);
     try {
       const res = await api.projects.analyzeArchitecture(id);
       if (res.success && res.report) {
         setArchitectureReport(res.report);
+        setTimeout(() => {
+          archCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 150);
       } else {
         setArchError(res.message || 'Error al analizar la arquitectura.');
+        setIsFocusMode(false);
       }
     } catch (e: any) {
       setArchError(e.message || 'Error de red al conectar con el servidor.');
+      setIsFocusMode(false);
     } finally {
       setAnalyzingArchitecture(false);
     }
@@ -226,6 +237,16 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
       if (res.success) {
         setEmailSuccessMsg('¡Correo enviado exitosamente mediante Gmail API!');
         setTimeout(() => setShowEmailModal(false), 2000);
+      } else {
+        const errorMsg = res.message || 'Error al despachar el correo.';
+        setEmailErrorMsg(errorMsg);
+        // Si el token expiró (error de Google usualmente contiene "credential" o "invalid"), forzar re-vinculación
+        if (errorMsg.toLowerCase().includes('credential') || errorMsg.toLowerCase().includes('token') || errorMsg.toLowerCase().includes('auth') || errorMsg.toLowerCase().includes('expired')) {
+          localStorage.removeItem('gmail_access_token');
+          localStorage.removeItem('gmail_email');
+          setGmailConnected(false);
+          setGmailToken(null);
+        }
       }
     } catch (err: any) {
       setEmailErrorMsg(err.message || 'Error al despachar el correo.');
@@ -462,7 +483,12 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
   }
 
   return (
-    <div className="flex-1 flex items-start justify-center overflow-y-auto p-6">
+    <div className="flex-1 flex items-start justify-center overflow-y-auto p-6 relative">
+      {/* BACKGROUND OVERLAY BLOQUEANTE - MODO FOCO / ANÁLISIS */}
+      {(isFocusMode || analyzingArchitecture) && (
+        <div className="fixed inset-0 bg-slate-950/40 backdrop-blur-[1px] z-40 pointer-events-auto transition-all duration-300" />
+      )}
+
       <div className="w-full max-w-4xl space-y-6">
         <button
           onClick={() => router.back()}
@@ -473,7 +499,11 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
         </button>
 
         {/* Project Header & Connected Repos */}
-        <div className="bg-white border border-border rounded-2xl p-6 shadow-sm space-y-4">
+        <div className={`bg-white border rounded-2xl p-6 shadow-sm space-y-4 transition-all duration-300 ${
+          analyzingArchitecture
+            ? 'relative z-50 ring-4 ring-indigo-500/35 border-indigo-400 scale-[1.01] shadow-2xl bg-white pointer-events-auto'
+            : ''
+        }`}>
           {editing ? (
             <>
               <input
@@ -562,6 +592,7 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                 <div className="flex items-center gap-3">
                   {connectedRepos.length > 0 && (
                     <button
+                      ref={analyzeButtonRef}
                       onClick={handleAnalyzeArchitecture}
                       disabled={analyzingArchitecture}
                       className="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-xl font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs disabled:opacity-50"
@@ -608,7 +639,9 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
 
         {/* Sección: Estado del Proyecto (Salud, KPIs y Flujo de Etapas) */}
         {statusSummary && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5 text-left">
+          <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-5 text-left transition-all duration-300 ${
+            (isFocusMode || analyzingArchitecture) ? 'blur-[1.5px] opacity-35 pointer-events-none' : ''
+          }`}>
             {/* Header & Health Badge */}
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
@@ -730,7 +763,9 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
 
         {/* AI Executive Summary from README.md - Clean White Card */}
         {connectedRepos.length > 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3">
+          <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-3 transition-all duration-300 ${
+            (isFocusMode || analyzingArchitecture) ? 'blur-[1.5px] opacity-35 pointer-events-none' : ''
+          }`}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
@@ -770,42 +805,57 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
 
         {/* Tarjeta Comprimida de Análisis de Arquitectura */}
         {architectureReport && (
-          <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-purple-950 text-white rounded-2xl p-5 shadow-md flex flex-wrap items-center justify-between gap-4 border border-indigo-800/50">
+          <div
+            ref={archCardRef}
+            className={`w-full bg-slate-100 border text-slate-900 rounded-2xl p-5 shadow-sm flex flex-wrap items-center justify-between gap-4 transition-all duration-300 pointer-events-auto ${
+              isFocusMode
+                ? 'border-blue-500 ring-4 ring-blue-500/20 shadow-lg z-50 relative scale-[1.01]'
+                : 'border-slate-200'
+            }`}
+          >
+            {/* Focus mode badge */}
+            {isFocusMode && (
+              <div className="absolute -top-3 left-5 flex items-center gap-1.5 bg-blue-600 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span>
+                ENFOQUE ACTIVO
+              </div>
+            )}
+
             <div className="flex items-center gap-3.5 min-w-0">
-              <div className="w-11 h-11 bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-xl flex items-center justify-center shrink-0 shadow-xs">
-                <Code2 size={22} />
+              <div className="w-10 h-10 bg-blue-50 border border-blue-100 text-blue-600 rounded-xl flex items-center justify-center shrink-0">
+                <Code2 size={20} />
               </div>
               <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="text-sm font-bold text-white tracking-tight">Análisis de Arquitectura Realizado</h3>
-                  <span className="text-[10px] font-mono font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-full">
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">Análisis de Arquitectura Realizado</h3>
+                  <span className="text-[10px] font-mono font-semibold bg-slate-200 text-slate-700 border border-slate-350 px-2 py-0.5 rounded-full">
                     Patrón: {architectureReport.architecturePattern || 'N/A'}
                   </span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-300 flex-wrap">
-                  <span>Mantenibilidad: <strong className="text-emerald-400 font-bold">{architectureReport.maintainabilityScore ?? 0}/100</strong></span>
+                <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
+                  <span>Mantenibilidad: <strong className="text-blue-700 font-bold">{architectureReport.maintainabilityScore ?? 0}/100</strong></span>
                   <span>•</span>
-                  <span>Complejidad: <strong className="text-indigo-300 font-bold">{architectureReport.complexityScore ?? 0}/100</strong></span>
+                  <span>Complejidad: <strong className="text-slate-700 font-bold">{architectureReport.complexityScore ?? 0}/100</strong></span>
                   <span>•</span>
-                  <span className="text-amber-300 font-medium">{architectureReport.issues?.length || 0} issue(s) detectados</span>
+                  <span className="text-amber-700 font-medium">{architectureReport.issues?.length || 0} issue(s) detectados</span>
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { setArchDocMode(false); setShowArchModal(true); }}
-                className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-2 group"
+                onClick={() => { setArchDocMode(false); setShowArchModal(true); setIsFocusMode(false); }}
+                className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded-xl transition-all shadow-2xs flex items-center gap-2"
               >
-                <Maximize2 size={14} className="group-hover:scale-110 transition-transform" />
+                <Maximize2 size={13} />
                 <span>Ver Detalles Completos</span>
               </button>
               <button
-                onClick={() => setArchitectureReport(null)}
-                className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-xl transition-colors"
-                title="Descartar vista rápida"
+                onClick={() => { setArchitectureReport(null); setIsFocusMode(false); }}
+                className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-200/50 rounded-xl transition-colors"
+                title={isFocusMode ? 'Salir del modo foco' : 'Descartar'}
               >
-                <X size={16} />
+                <X size={15} />
               </button>
             </div>
           </div>
@@ -1153,7 +1203,9 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
 
         {/* Live Git Activity Graph & Development Timeline */}
         {(connectedRepos.length > 0 || gitActivity) && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4">
+          <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4 transition-all duration-300 ${
+            (isFocusMode || analyzingArchitecture) ? 'blur-[1.5px] opacity-35 pointer-events-none' : ''
+          }`}>
             <div className="flex items-center justify-between border-b border-slate-100 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center shrink-0">

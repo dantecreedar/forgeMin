@@ -76,8 +76,15 @@ export class GmailController {
       </div>
     `;
 
-    const result = await this.gmailService.sendEmail(accessToken, to, subject || `Reporte de Avances: ${projectName || 'ForgeMind'}`, htmlBody);
-    return result;
+    try {
+      const result = await this.gmailService.sendEmail(accessToken, to, subject || `Reporte de Avances: ${projectName || 'ForgeMind'}`, htmlBody);
+      return result;
+    } catch (e: any) {
+      return {
+        success: false,
+        message: e.message || 'Error desconocido al enviar correo.'
+      };
+    }
   }
 
   @Get('messages')
