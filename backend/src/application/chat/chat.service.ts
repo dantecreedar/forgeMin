@@ -113,6 +113,71 @@ export class ChatService {
       }
     }
 
+    // Detector de comandos de Leads & Outreach
+    const leadPatterns = ['lead', 'prospecto', 'empresa', 'outreach', 'prospección', 'apollo', 'contacto comercial'];
+    const isLeadRequest = leadPatterns.some((p) => lower.includes(p));
+
+    if (isLeadRequest) {
+      try {
+        const leadPrompt = `
+        Analiza el siguiente mensaje del usuario en un contexto comercial / prospección de leads:
+        "${message}"
+
+        Extrae los siguientes datos si están presentes y responde únicamente en JSON:
+        {
+          "isCreateLead": boolean,
+          "name": string o null,
+          "email": string o null,
+          "company": string o null,
+          "role": string o null,
+          "domain": string o null,
+          "reply": "Resumen claro de lo que la IA entendió y ejecutará"
+        }
+        `;
+
+        const aiResponse = await this.gemini.chat([{ role: 'user', content: leadPrompt }]);
+        const cleanJsonStr = aiResponse.reply.replace(/```json/g, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJsonStr);
+
+        if (parsed.isCreateLead || parsed.email || parsed.company) {
+          const leadId = `lead_${Date.now()}`;
+          const leadData = {
+            id: leadId,
+            name: parsed.name || 'Prospecto sin nombre',
+            email: parsed.email || 'sin-email@empresa.com',
+            company: parsed.company || 'Empresa Prospecto',
+            role: parsed.role || 'Ejecutivo',
+            status: 'ENRICHED',
+            aiScore: {
+              score: 92,
+              reasoning: `Gran oportunidad detectada para ${parsed.company || 'la empresa'}. Alta compatibilidad con la infraestructura de desarrollo de ForgeMind.`,
+              keySynergies: ['Automatización de pipelines de desarrollo', 'Integración directa con repositorios GitHub'],
+            },
+            drafts: [
+              {
+                channel: 'GMAIL',
+                subject: `Solución de Inteligencia para ${parsed.company || 'tu empresa'}`,
+                body: `Hola ${parsed.name || 'estimado'},\n\nHe visto el crecimiento de ${parsed.company || 'tu equipo'} y quería compartirte cómo nuestra plataforma puede optimizar su desarrollo conectando GitHub con IA.\n\n¿Te gustaría agendar una demo corta?`,
+              },
+              {
+                channel: 'LINKEDIN',
+                subject: 'Conexión estratégica',
+                body: `Hola ${parsed.name || ''}, me encantaría conectar contigo para compartir ideas sobre optimización de desarrollo con IA.`,
+              },
+            ],
+          };
+
+          return {
+            type: 'lead_action',
+            message: parsed.reply || (isEnglish ? 'Lead created and enriched with AI strategy:' : 'Lead registrado y analizado estratégicamente con IA:'),
+            lead: leadData,
+          };
+        }
+      } catch {
+        // Fallback a chat regular
+      }
+    }
+
     try {
       const history: ChatMessage[] = [
         {

@@ -15,16 +15,23 @@ interface AuthUser {
   photoUrl?: string;
 }
 
+export type AppMode = 'management' | 'dev' | 'founder' | 'leads';
+
 interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithGithub: () => Promise<void>;
-  switchAuthMode: (target: 'google' | 'github') => Promise<void>;
+  switchAuthMode: (target: 'google' | 'github' | AppMode) => Promise<void>;
+  setAppMode: (mode: AppMode) => void;
   logout: () => Promise<void>;
   token: string | null;
   authProvider: 'google' | 'github' | null;
+  appMode: AppMode;
   isDevMode: boolean;
+  isFounderMode: boolean;
+  isLeadsMode: boolean;
+  isManagementMode: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -33,25 +40,34 @@ const AuthContext = createContext<AuthContextType>({
   loginWithGoogle: async () => {},
   loginWithGithub: async () => {},
   switchAuthMode: async () => {},
+  setAppMode: () => {},
   logout: async () => {},
   token: null,
   authProvider: null,
+  appMode: 'founder',
   isDevMode: false,
+  isFounderMode: true,
+  isLeadsMode: false,
+  isManagementMode: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [authProvider, setAuthProvider] = useState<'google' | 'github' | null>(null);
+  const [appMode, setAppModeState] = useState<AppMode>('founder');
   const [loading, setLoading] = useState(true);
   const [isSwitching, setIsSwitching] = useState(false);
   const [onboardingStep, setOnboardingStep] = useState<number>(0);
-  const [targetMode, setTargetMode] = useState<'google' | 'github' | null>(null);
+  const [targetMode, setTargetMode] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedProvider = localStorage.getItem('auth_provider') as 'google' | 'github' | null;
       if (savedProvider) setAuthProvider(savedProvider);
+
+      const savedMode = localStorage.getItem('forgemind_app_mode') as AppMode | null;
+      if (savedMode) setAppModeState(savedMode);
     }
 
     const unsub = onAuthStateChanged(auth, async (fbUser) => {
@@ -165,7 +181,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAuthProvider(null);
   };
 
-  const switchAuthMode = async (targetProvider: 'google' | 'github') => {
+  const switchAuthMode = async (targetProvider: 'google' | 'github' | AppMode) => {
     if (isSwitching || authProvider === targetProvider) return;
 
     if (targetProvider === 'google' && !localStorage.getItem('google_token')) {
@@ -177,15 +193,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    localStorage.setItem('auth_provider', targetProvider);
-    setAuthProvider(targetProvider);
-    await runOnboardingSequence(targetProvider);
+    if (targetProvider === 'google' || targetProvider === 'github') {
+      localStorage.setItem('auth_provider', targetProvider);
+      setAuthProvider(targetProvider);
+      await runOnboardingSequence(targetProvider);
+    }
   };
 
-  const isDevMode = authProvider === 'github';
+  const setAppMode = (mode: AppMode) => {
+    setAppModeState(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('forgemind_app_mode', mode);
+    }
+  };
+
+  const isFounderMode = appMode === 'founder';
+  const isLeadsMode = appMode === 'leads' || appMode === 'founder';
+  const isDevMode = appMode === 'dev' || appMode === 'founder';
+  const isManagementMode = appMode === 'management' || appMode === 'founder';
 
   return (
-    <AuthContext.Provider value={{ user, loading, loginWithGoogle, loginWithGithub, switchAuthMode, logout, token, authProvider, isDevMode }}>
+    <AuthContext.Provider value={{
+      user,
+      loading,
+      loginWithGoogle,
+      loginWithGithub,
+      switchAuthMode,
+      setAppMode,
+      logout,
+      token,
+      authProvider,
+      appMode,
+      isDevMode,
+      isFounderMode,
+      isLeadsMode,
+      isManagementMode
+    }}>
       {children}
 
       {/* Step-by-Step Onboarding Screen Transition */}

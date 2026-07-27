@@ -10,6 +10,8 @@ import {
   LayoutDashboard,
   Folder,
   FolderGit2,
+  Users,
+  Sparkles,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -50,16 +52,18 @@ export function Sidebar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();
-  const { user, logout, switchAuthMode, isDevMode } = useAuth();
+  const { user, logout, setAppMode, appMode, isDevMode, isFounderMode, isLeadsMode, isManagementMode } = useAuth();
   const { settings } = useProfileSettings();
   const lang = settings.language || 'es';
   const t = translations[lang] || translations.es;
 
+  // Herramientas filtradas por modo
   const navItems = [
     { href: '/dashboard', label: t.sidebar.intelligence, icon: LayoutDashboard },
     { href: '/saved-chats', label: t.sidebar.savedChats, icon: Save },
-    { href: '/workspaces', label: t.sidebar.workspaces, icon: Folder },
-    { href: '/repositories', label: t.sidebar.repositories, icon: FolderGit2, requiresDev: true },
+    { href: '/workspaces', label: t.sidebar.workspaces, icon: Folder, mode: 'management' },
+    { href: '/repositories', label: t.sidebar.repositories, icon: FolderGit2, mode: 'dev' },
+    { href: '/dashboard/leads', label: 'Prospección & Leads', icon: Users, mode: 'leads' },
   ];
 
   const [collapsed, setCollapsed] = useState(false);
@@ -81,8 +85,9 @@ export function Sidebar() {
   const activeSessionId = searchParams.get('session');
 
   const filteredNavItems = navItems.filter((item) => {
-    if (item.requiresDev && !isDevMode) return false;
-    return true;
+    if (!item.mode) return true; // Comunes (Intelligence, Saved Chats)
+    if (isFounderMode) return true; // Modo Fundador tiene acceso total a todas las herramientas
+    return item.mode === appMode;
   });
 
   const loadSessionsAndProjects = async () => {
@@ -243,12 +248,24 @@ export function Sidebar() {
                 <span className="text-sm font-bold text-white tracking-wider leading-none">ForgeMind</span>
                 <span
                   className={`text-[9px] font-bold tracking-wide mt-1 px-1.5 py-0.5 rounded-md w-fit flex items-center gap-1 border ${
-                    isDevMode
+                    isFounderMode
                       ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
+                      : isLeadsMode
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                      : isDevMode
+                      ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                       : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
                   }`}
                 >
-                  {isDevMode ? <><Code2 size={10} /> Modo Dev</> : <><ShieldCheck size={10} /> Modo Gestión</>}
+                  {isFounderMode ? (
+                    <><Sparkles size={10} /> Modo Fundador (Total)</>
+                  ) : isLeadsMode ? (
+                    <><Users size={10} /> Modo Leads / Negocios</>
+                  ) : isDevMode ? (
+                    <><Code2 size={10} /> Modo Dev</>
+                  ) : (
+                    <><ShieldCheck size={10} /> Modo Gestión</>
+                  )}
                 </span>
               </div>
             </motion.div>
@@ -271,8 +288,13 @@ export function Sidebar() {
         <nav className="flex-1 px-2.5 py-3 space-y-1.5 overflow-y-auto">
           {filteredNavItems.map((item) => {
             const isIntelligence = item.href === '/dashboard';
+            const isLeads = item.href === '/dashboard/leads';
+            
+            // Coincidencia exacta de ruta para evitar que /dashboard marque activo cuando se está en /dashboard/leads
             const active = isIntelligence
-              ? pathname === '/dashboard' || pathname.startsWith('/dashboard')
+              ? pathname === '/dashboard'
+              : isLeads
+              ? pathname === '/dashboard/leads'
               : pathname.startsWith(item.href);
             const Icon = item.icon;
 
@@ -501,16 +523,59 @@ export function Sidebar() {
                   <span>{t.profile.designSettings}</span>
                 </Link>
 
-                <button
-                  onClick={() => {
-                    setShowProfileSubmenu(false);
-                    switchAuthMode(isDevMode ? 'google' : 'github');
-                  }}
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-white/90 hover:text-white hover:bg-slate-800 transition-all font-medium text-left"
-                >
-                  <ArrowLeftRight size={15} className="text-blue-400" />
-                  <span>{isDevMode ? t.profile.switchManagement : t.profile.switchDev}</span>
-                </button>
+                <div className="space-y-1 mb-2 border-b border-slate-800 pb-2">
+                  <button
+                    onClick={() => {
+                      setAppMode('founder');
+                      setShowProfileSubmenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl transition-all ${
+                      isFounderMode ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2"><Sparkles size={14} className="text-amber-400" /> Modo Fundador (Acceso Total)</span>
+                    {isFounderMode && <Check size={12} />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setAppMode('leads');
+                      setShowProfileSubmenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl transition-all ${
+                      isLeadsMode && !isFounderMode ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2"><Users size={14} className="text-emerald-400" /> Modo Leads / Negocios</span>
+                    {isLeadsMode && !isFounderMode && <Check size={12} />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setAppMode('dev');
+                      setShowProfileSubmenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl transition-all ${
+                      isDevMode && !isFounderMode ? 'bg-purple-500/20 text-purple-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2"><Code2 size={14} className="text-purple-400" /> Modo Dev</span>
+                    {isDevMode && !isFounderMode && <Check size={12} />}
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setAppMode('management');
+                      setShowProfileSubmenu(false);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl transition-all ${
+                      isManagementMode && !isFounderMode ? 'bg-blue-500/20 text-blue-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-blue-400" /> Modo Gestión</span>
+                    {isManagementMode && !isFounderMode && <Check size={12} />}
+                  </button>
+                </div>
 
                 <div className="pt-1 border-t border-slate-800">
                   <button
@@ -548,7 +613,7 @@ export function Sidebar() {
                   <p className="text-xs font-semibold text-white truncate group-hover:text-amber-300 transition-colors">
                     {user?.displayName || 'Usuario'}
                   </p>
-                  <p className="text-[10px] text-white/60 truncate">{isDevMode ? 'Modo Dev' : 'Modo Gestión'}</p>
+                  <p className="text-[10px] text-white/60 truncate">{isDevMode ? 'Modo Fundador' : 'Modo Gestión'}</p>
                 </div>
                 <ChevronUp
                   size={14}

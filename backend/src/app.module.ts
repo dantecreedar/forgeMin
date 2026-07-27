@@ -74,6 +74,14 @@ import { ReadDriveFileUseCase } from './application/drive/read-drive-file.use-ca
 import { ListDriveFilesUseCase } from './application/drive/list-drive-files.use-case';
 import { DriveController } from './presentation/controllers/drive.controller';
 
+import { LeadsController } from './presentation/controllers/leads.controller';
+import { CreateLeadUseCase } from './application/use-cases/leads/create-lead.use-case';
+import { EnrichLeadUseCase } from './application/use-cases/leads/enrich-lead.use-case';
+import { SendOutreachUseCase } from './application/use-cases/leads/send-outreach.use-case';
+import { GeminiLeadEnrichmentService } from './infrastructure/services/gemini-lead-enrichment.service';
+import { GmailOutreachService } from './infrastructure/services/gmail-outreach.service';
+import { InMemoryLeadRepository } from './infrastructure/repositories/in-memory-lead.repository';
+
 const firestoreProviders = [
   { provide: AUTH_REPOSITORY, useClass: FirestoreAuthRepository },
   { provide: WORKSPACE_REPOSITORY, useClass: FirestoreWorkspaceRepository },
@@ -88,6 +96,7 @@ const firestoreProviders = [
   { provide: KNOWLEDGE_REPOSITORY, useClass: FirestoreKnowledgeRepository },
   { provide: DOCUMENT_REPOSITORY, useClass: FirestoreDocumentRepository },
   { provide: 'IDriveRepository', useClass: GoogleDriveAdapter },
+  { provide: 'ILeadRepository', useClass: InMemoryLeadRepository },
 ];
 
 @Module({
@@ -107,6 +116,7 @@ const firestoreProviders = [
     DocumentController,
     GmailController,
     DriveController,
+    LeadsController,
   ],
   providers: [
     AuthApplicationService,
@@ -134,6 +144,11 @@ const firestoreProviders = [
     GoogleDriveAdapter,
     ReadDriveFileUseCase,
     ListDriveFilesUseCase,
+    CreateLeadUseCase,
+    EnrichLeadUseCase,
+    SendOutreachUseCase,
+    GeminiLeadEnrichmentService,
+    GmailOutreachService,
     { provide: GITHUB_CLIENT, useClass: GitHubClientService },
     { provide: AUTH_SERVICE, useClass: FirebaseAuthService },
     ...firestoreProviders,
