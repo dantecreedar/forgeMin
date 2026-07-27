@@ -99,49 +99,93 @@ export class CodebaseAnalyzerService {
   ) {}
 
   async analyzeCodebase(owner: string, repo: string, branch?: string, userToken?: string): Promise<CodebaseAnalysisResult> {
-    const tree = await this.githubClient.getRepositoryTree(owner, repo, branch, userToken);
+    console.log(`[CodebaseAnalyzer] Starting analysis for ${owner}/${repo} (branch: ${branch || 'default'})...`);
+    let tree = await this.githubClient.getRepositoryTree(owner, repo, branch, userToken);
+    let files: Array<{ path: string; content: string }> = [];
 
+    // Fallback: If GitHub API returns 0 files (no token configured or private repo restriction), read from local filesystem!
     if (tree.length === 0) {
-      return this.emptyResult('El repositorio no tiene archivos accesibles o está vacío.');
+      console.log(`[CodebaseAnalyzer] Remote GitHub tree empty for ${owner}/${repo}. Trying local Git workspace fallback...`);
+      const fs = await import('fs');
+      const pathModule = await import('path');
+
+      const root = process.cwd();
+      const readDirRecursive = (dir: string, baseDir = ''): IRepoTreeItem[] => {
+        let items: IRepoTreeItem[] = [];
+        try {
+          const entries = fs.readdirSync(dir, { withFileTypes: true });
+          for (const entry of entries) {
+            const relPath = baseDir ? `${baseDir}/${entry.name}` : entry.name;
+            if (isExcluded(relPath)) continue;
+            if (entry.isDirectory()) {
+              items.push({ path: relPath, type: 'tree', sha: 'dir' });
+              items.push(...readDirRecursive(pathModule.join(dir, entry.name), relPath));
+            } else if (entry.isFile()) {
+              items.push({ path: relPath, type: 'blob', sha: 'file' });
+            }
+          }
+        } catch {}
+        return items;
+      };
+
+      tree = readDirRecursive(root);
+      console.log(`[CodebaseAnalyzer] Local workspace scanned: ${tree.length} items found.`);
+
+      const analyzableLocal = tree.filter((item) => item.type === 'blob');
+      const scoredLocal = analyzableLocal
+        .map((item) => ({ item, score: scorePath(item.path) }))
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 25);
+
+      files = scoredLocal.map((s) => {
+        try {
+          const fullPath = pathModule.join(root, s.item.path);
+          const content = fs.readFileSync(fullPath, 'utf-8');
+          return { path: s.item.path, content };
+        } catch {
+          return null;
+        }
+      }).filter((f): f is { path: string; content: string } => f !== null);
+    } else {
+      const analyzableFiles = tree.filter(
+        (item): item is IRepoTreeItem & { type: 'blob' } =>
+          item.type === 'blob' && !isExcluded(item.path),
+      );
+
+      const scored = analyzableFiles
+        .map((item) => ({ item, score: scorePath(item.path) }))
+        .sort((a, b) => b.score - a.score);
+
+      const highPriority = scored.filter((s) => s.score >= 100).slice(0, 10);
+      const mediumPriority = scored.filter((s) => s.score >= 60 && s.score < 100).slice(0, 10);
+      const lowerPriority = scored.filter((s) => s.score < 60).slice(0, 5);
+
+      const selectedItems = [
+        ...highPriority,
+        ...mediumPriority,
+        ...lowerPriority,
+      ].map((s) => s.item);
+
+      const fileContents = await Promise.all(
+        selectedItems.map((item) =>
+          this.githubClient.getFileContent(owner, repo, item.path, userToken),
+        ),
+      );
+
+      files = fileContents
+        .filter((f): f is NonNullable<typeof f> => f !== null)
+        .map((f) => ({ path: f.path, content: f.content }));
     }
 
-    const analyzableFiles = tree.filter(
-      (item): item is IRepoTreeItem & { type: 'blob' } =>
-        item.type === 'blob' && !isExcluded(item.path),
-    );
-
-    const scored = analyzableFiles
-      .map((item) => ({ item, score: scorePath(item.path) }))
-      .sort((a, b) => b.score - a.score);
-
-    const highPriority = scored.filter((s) => s.score >= 100).slice(0, 10);
-    const mediumPriority = scored.filter((s) => s.score >= 60 && s.score < 100).slice(0, 10);
-    const lowerPriority = scored.filter((s) => s.score < 60).slice(0, 5);
-
-    const selectedItems = [
-      ...highPriority,
-      ...mediumPriority,
-      ...lowerPriority,
-    ].map((s) => s.item);
-
-    const fileContents = await Promise.all(
-      selectedItems.map((item) =>
-        this.githubClient.getFileContent(owner, repo, item.path, userToken),
-      ),
-    );
-
-    const files = fileContents
-      .filter((f): f is NonNullable<typeof f> => f !== null)
-      .map((f) => ({ path: f.path, content: f.content }));
-
-    if (files.length === 0) {
-      return this.emptyResult('No se pudo leer el contenido de los archivos del repositorio.');
+    if (tree.length === 0 || files.length === 0) {
+      return this.emptyResult('El repositorio no tiene archivos accesibles o requiere autenticación de GitHub.');
     }
 
     const fullTreePaths = tree
       .filter((item) => !isExcluded(item.path))
       .map((item) => (item.type === 'tree' ? `📁 ${item.path}/` : `  ${item.path}`));
 
+    console.log(`[CodebaseAnalyzer] Sending ${files.length} files to Gemini for architecture analysis...`);
     return this.geminiService.analyzeCodebaseArchitecture(files, fullTreePaths);
   }
 
