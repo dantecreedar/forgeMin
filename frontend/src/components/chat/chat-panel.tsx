@@ -254,7 +254,7 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
                       className="w-full h-full flex items-center justify-center select-none font-bold text-[10px] tracking-widest uppercase transform -rotate-12 text-slate-400"
                       style={{ opacity: settings.watermarkOpacity }}
                     >
-                      {settings.watermarkText}
+                      {settings.watermarkText} • Confidencial
                     </div>
                   </div>
                 )}

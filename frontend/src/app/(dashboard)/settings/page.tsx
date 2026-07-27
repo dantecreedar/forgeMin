@@ -143,8 +143,9 @@ export default function SettingsPage() {
                     value={settings.watermarkText}
                     onChange={(e) => updateSettings({ watermarkText: e.target.value })}
                     className="w-full text-xs bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-primary/20"
-                    placeholder="Ej: ForgeMind • Confidencial"
+                    placeholder="Ej: SaferSchoolSolutions"
                   />
+                  <p className="text-[10px] text-slate-500 italic mt-1">El sufijo "• Confidencial" se inyectará de forma obligatoria al final de la marca de agua.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -188,7 +189,7 @@ export default function SettingsPage() {
                   className="absolute inset-0 flex items-center justify-center pointer-events-none select-none font-bold text-sm tracking-widest uppercase transform -rotate-12 text-slate-400"
                   style={{ opacity: settings.watermarkOpacity }}
                 >
-                  {settings.watermarkText}
+                  {settings.watermarkText} • Confidencial
                 </div>
               )}
 

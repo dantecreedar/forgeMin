@@ -33,7 +33,7 @@ interface SettingsContextType {
 }
 
 const defaultSettings: UserProfileSettings = {
-  watermarkText: 'ForgeMind • Confidencial',
+  watermarkText: 'ForgeMind',
   showWatermark: true,
   watermarkOpacity: 0.12,
   messageDesign: 'slate',

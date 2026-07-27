@@ -433,7 +433,7 @@ export default function DashboardPage() {
                                   className="w-full h-full flex items-center justify-center select-none font-bold text-xs tracking-widest uppercase transform -rotate-12 text-slate-400"
                                   style={{ opacity: settings.watermarkOpacity }}
                                 >
-                                  {settings.watermarkText}
+                                  {settings.watermarkText} • Confidencial
                                 </div>
                               </div>
                             )}
