@@ -113,9 +113,10 @@ export class LocalGitService {
     }
   }
 
-  async getLocalCommits(count = 10): Promise<ICommit[]> {
+  async getLocalCommits(count = 10): Promise<(ICommit & { isLocal?: boolean; branchName?: string })[]> {
     try {
-      const format = '%H|%an|%ae|%ad|%s';
+      const currentBranch = await this.getCurrentBranch();
+      const format = '%H|%an|%ae|%ad|%s|%D';
       const { stdout } = await execAsync(`git log -n ${count} --pretty=format:"${format}"`, {
         cwd: this.repoRoot,
       });
@@ -124,7 +125,19 @@ export class LocalGitService {
 
       const lines = stdout.trim().split('\n');
       return lines.map((line) => {
-        const [sha, authorName, authorEmail, authorDate, message] = line.split('|');
+        const [sha, authorName, authorEmail, authorDate, message, refs] = line.split('|');
+        let branchName = currentBranch;
+        if (refs) {
+          // Parse ref names like "HEAD -> develop, origin/develop" or "tag: v1.0, main"
+          const refParts = refs.split(',').map((r) => r.trim());
+          for (const ref of refParts) {
+            const cleanRef = ref.replace(/^HEAD ->\s*/, '').replace(/^origin\//, '');
+            if (cleanRef && !cleanRef.startsWith('tag:')) {
+              branchName = cleanRef;
+              break;
+            }
+          }
+        }
         return {
           id: uuidv4(),
           repositoryId: 'local-repo',
@@ -140,7 +153,8 @@ export class LocalGitService {
           url: '',
           createdAt: authorDate ? new Date(authorDate) : new Date(),
           isLocal: true,
-        } as ICommit & { isLocal?: boolean };
+          branchName,
+        };
       });
     } catch (error) {
       return [];

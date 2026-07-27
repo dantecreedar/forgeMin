@@ -227,7 +227,26 @@ export default function ProjectDetailPage() {
     loadData(true); // Auto-sync on page mount!
     const handleRefresh = () => loadData(false);
     window.addEventListener('forgemind:refresh', handleRefresh);
-    return () => window.removeEventListener('forgemind:refresh', handleRefresh);
+
+    // Auto-poll Git activity every 8 seconds for real-time commit detection
+    const pollInterval = setInterval(() => {
+      api.projects.getGitActivity(id)
+        .then((res) => setGitActivity(res))
+        .catch(() => {});
+    }, 8000);
+
+    const handleFocus = () => {
+      api.projects.getGitActivity(id)
+        .then((res) => setGitActivity(res))
+        .catch(() => {});
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      window.removeEventListener('forgemind:refresh', handleRefresh);
+      window.removeEventListener('focus', handleFocus);
+      clearInterval(pollInterval);
+    };
   }, [id]);
 
   const saveEdit = async () => {
@@ -1041,7 +1060,7 @@ export default function ProjectDetailPage() {
                           <div className="flex items-center gap-2">
                             <span>Por: <strong className="text-slate-700 font-medium">{commit.authorName}</strong></span>
                             <span>•</span>
-                            <span>Rama: <strong className="text-purple-700 font-mono">{gitActivity.defaultBranch || 'main'}</strong></span>
+                            <span>Rama: <strong className="text-purple-700 font-mono">{commit.branchName || gitActivity.defaultBranch || 'main'}</strong></span>
                           </div>
                           <span className={`px-2 py-0.5 rounded font-mono text-[9px] font-semibold ${
                             commit.isLocal ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'

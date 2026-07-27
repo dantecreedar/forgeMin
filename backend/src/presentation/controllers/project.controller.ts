@@ -146,12 +146,20 @@ Indica brevemente el propósito de la app.`;
       this.localGitService.getLocalBranches().catch(() => []),
     ]);
 
-    let finalCommits = (remoteCommits || []).slice(0, 6).map((c) => ({ ...c, isLocal: false }));
+    let finalCommits = (remoteCommits || []).slice(0, 10).map((c) => ({
+      ...c,
+      isLocal: false,
+      branchName: repo?.defaultBranch || 'main',
+    }));
     let isLocalMode = false;
 
     if (finalCommits.length === 0) {
       isLocalMode = true;
-      finalCommits = (localCommits || []).slice(0, 6).map((c) => ({ ...c, isLocal: true }));
+      finalCommits = (localCommits || []).slice(0, 10).map((c) => ({
+        ...c,
+        isLocal: true,
+        branchName: c.branchName || localStatus.currentBranch || 'main',
+      }));
     }
 
     // Process all discovered branches & classify by environment (Producción, Desarrollo, QA)
