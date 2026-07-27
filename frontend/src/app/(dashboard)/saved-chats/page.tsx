@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Save, Trash2, Search, MessageSquare, Calendar, ChevronRight, Check } from 'lucide-react';
+import { Save, Trash2, Search, MessageSquare, Calendar, ChevronRight, Check, Code2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useProfileSettings } from '@/lib/settings-context';
 import { translations } from '@/lib/translations';
@@ -217,6 +217,100 @@ export default function SavedChatsPage() {
             })}
           </div>
         )}
+      </div>
+
+      {/* SECCIÓN DE INFORMES DE ARQUITECTURA GUARDADOS */}
+      <div className="pt-6 border-t border-slate-200 space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <Code2 className="text-indigo-600" size={20} />
+              Informes de Arquitectura Guardados
+            </h2>
+            <p className="text-xs text-slate-500 mt-0.5">Auditorías técnicas y análisis de código fuente guardados en la plataforma</p>
+          </div>
+        </div>
+
+        {(() => {
+          if (typeof window === 'undefined') return null;
+          const allSavedReports: any[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('saved_arch_reports_')) {
+              try {
+                const items = JSON.parse(localStorage.getItem(key) || '[]');
+                allSavedReports.push(...items);
+              } catch {}
+            }
+          }
+
+          if (allSavedReports.length === 0) {
+            return (
+              <div className="p-8 text-center bg-white border border-slate-200 rounded-3xl space-y-1">
+                <Code2 size={24} className="mx-auto text-slate-300 mb-1" />
+                <p className="text-xs font-semibold text-slate-600">No hay informes de arquitectura guardados aún.</p>
+                <p className="text-[11px] text-slate-400">Puedes guardar un informe haciendo click en "Guardar" al analizar un proyecto.</p>
+              </div>
+            );
+          }
+
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {allSavedReports.map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => router.push(`/projects/${item.projectId}`)}
+                  className="bg-white border border-slate-200 hover:border-indigo-500/40 rounded-3xl p-5 shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-3 group"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="space-y-1 min-w-0">
+                      <span className="text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2 py-0.5 rounded-full">
+                        {item.projectName}
+                      </span>
+                      <h4 className="text-xs font-bold text-slate-900 group-hover:text-indigo-600 transition-colors pt-1">
+                        Patrón: {item.report?.architecturePattern || 'N/A'}
+                      </h4>
+                    </div>
+                    <span className="text-[10px] text-slate-400 flex items-center gap-1 shrink-0">
+                      <Calendar size={11} />
+                      {new Date(item.savedAt).toLocaleDateString()}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed font-sans">
+                    {item.report?.overview}
+                  </p>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-[11px]">
+                      <span className="text-emerald-600 font-bold">Mantenibilidad: {item.report?.maintainabilityScore}/100</span>
+                      <span>•</span>
+                      <span className="text-amber-600 font-bold">{item.report?.issues?.length || 0} issues</span>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        try {
+                          const savedKey = `saved_arch_reports_${item.projectId}`;
+                          const existing = JSON.parse(localStorage.getItem(savedKey) || '[]');
+                          const updated = existing.filter((x: any) => x.id !== item.id);
+                          localStorage.setItem(savedKey, JSON.stringify(updated));
+                          showToast('Informe eliminado de Guardados');
+                          window.dispatchEvent(new Event('forgemind:saved-responses-updated'));
+                        } catch {}
+                      }}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-colors"
+                      title="Eliminar de guardados"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

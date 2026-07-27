@@ -287,8 +287,28 @@ Reglas:
   }
 
   private parseStructuredJson<T>(text: string): T {
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) throw new Error('Failed to parse AI response as JSON');
-    return JSON.parse(jsonMatch[0]) as T;
+    // Strip markdown code fences (```json ... ``` or ``` ... ```)
+    let cleaned = text.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+
+    // Find the first '{' and use brace-counting to extract the full JSON object
+    const start = cleaned.indexOf('{');
+    if (start === -1) throw new Error('No JSON object found in AI response');
+
+    let depth = 0;
+    let end = -1;
+    for (let i = start; i < cleaned.length; i++) {
+      if (cleaned[i] === '{') depth++;
+      else if (cleaned[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          end = i;
+          break;
+        }
+      }
+    }
+
+    if (end === -1) throw new Error('Malformed JSON: unmatched braces in AI response');
+    const jsonStr = cleaned.slice(start, end + 1);
+    return JSON.parse(jsonStr) as T;
   }
 }

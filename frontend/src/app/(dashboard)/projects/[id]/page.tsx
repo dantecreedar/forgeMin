@@ -9,7 +9,8 @@ import {
   ArrowLeft, Edit3, Trash2, Plus, X, CheckCircle, Clock, AlertCircle, Target, 
   Sparkles, FolderGit2, RefreshCw, Link as LinkIcon, Table, LayoutGrid, Download, 
   FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink, Mail, Send,
-  Code2, ShieldAlert, Cpu, Check, Layers, ChevronDown, ChevronUp
+  Code2, ShieldAlert, Cpu, Check, Layers, ChevronDown, ChevronUp,
+  Bookmark, FileCode, Printer, Maximize2, CheckCircle2
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -38,6 +39,12 @@ export default function ProjectDetailPage() {
   const [archError, setArchError] = useState<string | null>(null);
   const [showAllCommits, setShowAllCommits] = useState(false);
 
+  // Architecture Modal & Feature States
+  const [showArchModal, setShowArchModal] = useState(false);
+  const [archDocMode, setArchDocMode] = useState(false);
+  const [isSavedArch, setIsSavedArch] = useState(false);
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState<string | null>(null);
+
   const handleAnalyzeArchitecture = async () => {
     setAnalyzingArchitecture(true);
     setArchError(null);
@@ -53,6 +60,59 @@ export default function ProjectDetailPage() {
     } finally {
       setAnalyzingArchitecture(false);
     }
+  };
+
+  const handleSaveArchitecture = () => {
+    if (!architectureReport) return;
+    try {
+      const savedKey = `saved_arch_reports_${id}`;
+      const existingStr = localStorage.getItem(savedKey);
+      const existing = existingStr ? JSON.parse(existingStr) : [];
+      const newEntry = {
+        id: Date.now().toString(),
+        projectId: id,
+        projectName: project?.name || 'Proyecto',
+        savedAt: new Date().toISOString(),
+        report: architectureReport,
+      };
+      existing.unshift(newEntry);
+      localStorage.setItem(savedKey, JSON.stringify(existing));
+      setIsSavedArch(true);
+      setSaveSuccessMsg('¡Informe guardado con éxito en Guardados!');
+      setTimeout(() => setSaveSuccessMsg(null), 3500);
+    } catch {
+      setSaveSuccessMsg('No se pudo guardar localmente.');
+      setTimeout(() => setSaveSuccessMsg(null), 3000);
+    }
+  };
+
+  const handleExportPDF = () => {
+    window.print();
+  };
+
+  const handleSendArchEmail = () => {
+    if (!architectureReport) return;
+    const summaryText = `INFORME DE ARQUITECTURA Y CÓDIGO - ${project?.name || 'PROYECTO'}
+Patrón: ${architectureReport.architecturePattern || 'N/A'}
+Mantenibilidad: ${architectureReport.maintainabilityScore ?? 0}/100 | Complejidad: ${architectureReport.complexityScore ?? 0}/100
+
+Resumen General:
+${architectureReport.overview || 'Sin descripción'}
+
+Issues Detectados (${architectureReport.issues?.length || 0}):
+${(architectureReport.issues || []).map((i: any, idx: number) => `${idx + 1}. [${i.severity?.toUpperCase()}] ${i.title}: ${i.description} (Rec: ${i.recommendation})`).join('\n\n')}
+
+Fortalezas:
+${(architectureReport.strengths || []).map((s: string) => `• ${s}`).join('\n')}
+
+Recomendaciones:
+${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join('\n')}
+`;
+
+    setEmailSubject(`[ForgeMind] Informe de Arquitectura de Código: ${project?.name || 'Proyecto'}`);
+    setEmailContent(summaryText);
+    setShowArchModal(false);
+    setShowEmailModal(true);
   };
 
   // View mode: 'cards' vs 'excel'
@@ -708,180 +768,388 @@ export default function ProjectDetailPage() {
           </div>
         )}
 
+        {/* Tarjeta Comprimida de Análisis de Arquitectura */}
         {architectureReport && (
-          <div className="bg-white border border-indigo-200 rounded-2xl p-6 shadow-sm space-y-5 text-left">
-            <div className="flex items-center justify-between border-b border-indigo-100 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center shrink-0">
-                  <Code2 size={18} />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900">Informe de Arquitectura de Código Fuente</h3>
-                  <p className="text-[10px] text-slate-400">Generado mediante escaneo de archivos clave y estructura de repositorio con Gemini IA</p>
-                </div>
+          <div className="bg-gradient-to-r from-indigo-900 via-slate-900 to-purple-950 text-white rounded-2xl p-5 shadow-md flex flex-wrap items-center justify-between gap-4 border border-indigo-800/50">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <div className="w-11 h-11 bg-indigo-500/20 border border-indigo-400/30 text-indigo-300 rounded-xl flex items-center justify-center shrink-0 shadow-xs">
+                <Code2 size={22} />
               </div>
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 px-2.5 py-1 rounded-full">
-                  Patrón: {architectureReport.architecturePattern || 'N/A'}
-                </span>
-                <button
-                  onClick={() => setArchitectureReport(null)}
-                  className="text-slate-400 hover:text-slate-600 p-1"
-                  title="Cerrar informe"
-                >
-                  <X size={14} />
-                </button>
+              <div className="space-y-1 min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-sm font-bold text-white tracking-tight">Análisis de Arquitectura Realizado</h3>
+                  <span className="text-[10px] font-mono font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2 py-0.5 rounded-full">
+                    Patrón: {architectureReport.architecturePattern || 'N/A'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 text-xs text-slate-300 flex-wrap">
+                  <span>Mantenibilidad: <strong className="text-emerald-400 font-bold">{architectureReport.maintainabilityScore ?? 0}/100</strong></span>
+                  <span>•</span>
+                  <span>Complejidad: <strong className="text-indigo-300 font-bold">{architectureReport.complexityScore ?? 0}/100</strong></span>
+                  <span>•</span>
+                  <span className="text-amber-300 font-medium">{architectureReport.issues?.length || 0} issue(s) detectados</span>
+                </div>
               </div>
             </div>
 
-            {/* Scores & Quick Metrics */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-3 text-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-500">Mantenibilidad</span>
-                <p className="text-xl font-bold text-indigo-700 mt-1">{architectureReport.maintainabilityScore ?? 0}/100</p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complejidad</span>
-                <p className="text-xl font-bold text-slate-700 mt-1">{architectureReport.complexityScore ?? 0}/100</p>
-              </div>
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 text-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Capas Detectadas</span>
-                <p className="text-xl font-bold text-slate-700 mt-1">{architectureReport.layers?.length || 0}</p>
-              </div>
-              <div className="bg-amber-50/60 border border-amber-200 rounded-xl p-3 text-center">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600">Issues Detectados</span>
-                <p className="text-xl font-bold text-amber-700 mt-1">{architectureReport.issues?.length || 0}</p>
-              </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setArchDocMode(false); setShowArchModal(true); }}
+                className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-semibold px-4 py-2 rounded-xl transition-all shadow-xs flex items-center gap-2 group"
+              >
+                <Maximize2 size={14} className="group-hover:scale-110 transition-transform" />
+                <span>Ver Detalles Completos</span>
+              </button>
+              <button
+                onClick={() => setArchitectureReport(null)}
+                className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-xl transition-colors"
+                title="Descartar vista rápida"
+              >
+                <X size={16} />
+              </button>
             </div>
+          </div>
+        )}
 
-            {/* Overview */}
-            {architectureReport.overview && (
-              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-                  <Cpu size={14} className="text-indigo-600" /> Visión General de la Arquitectura
-                </h4>
-                <p className="text-xs text-slate-700 leading-relaxed whitespace-pre-wrap">
-                  {architectureReport.overview}
-                </p>
-              </div>
-            )}
-
-            {/* Stack Tecnológico */}
-            {architectureReport.stack?.length > 0 && (
-              <div>
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <Layers size={14} className="text-indigo-600" /> Stack Tecnológico Identificado
-                </h4>
-                <div className="flex flex-wrap gap-2">
-                  {architectureReport.stack.map((item: any, idx: number) => (
-                    <span key={idx} className="text-xs bg-slate-100 border border-slate-200 text-slate-800 px-3 py-1 rounded-xl font-medium flex items-center gap-1.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-indigo-500"></span>
-                      <strong>{item.name}</strong>
-                      <span className="text-[10px] text-slate-500">({item.role})</span>
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Issues de Arquitectura & Código */}
-            {architectureReport.issues?.length > 0 && (
-              <div className="space-y-3">
-                <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                  <AlertCircle size={14} className="text-amber-500" /> Problemas y Asuntos A Revisar
-                </h4>
-                <div className="space-y-2.5">
-                  {architectureReport.issues.map((issue: any, idx: number) => {
-                    const isHigh = issue.severity === 'high';
-                    const isMedium = issue.severity === 'medium';
-                    return (
-                      <div
-                        key={idx}
-                        className={`border rounded-xl p-3.5 space-y-1.5 text-xs ${
-                          isHigh
-                            ? 'bg-red-50/50 border-red-200 text-red-950'
-                            : isMedium
-                            ? 'bg-amber-50/50 border-amber-200 text-amber-950'
-                            : 'bg-slate-50 border-slate-200 text-slate-900'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold flex items-center gap-1.5">
-                            {isHigh ? '🔴' : isMedium ? '🟡' : '🟢'} {issue.title}
+        {/* MODAL DE DETALLES DE ARQUITECTURA */}
+        <AnimatePresence>
+          {showArchModal && architectureReport && (
+            <div
+              className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/70 backdrop-blur-sm overflow-y-auto"
+              onClick={(e) => { if (e.target === e.currentTarget) setShowArchModal(false); }}
+            >
+              <motion.div
+                initial={{ opacity: 0, y: 24, scale: 0.97 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.97 }}
+                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                className="w-full max-w-4xl mx-auto my-10 rounded-3xl overflow-hidden shadow-2xl border border-white/10"
+              >
+                {/* === HEADER OSCURO CON GRADIENTE === */}
+                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 px-7 pt-7 pb-6 space-y-5">
+                  {/* Top bar */}
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center text-indigo-300 shrink-0">
+                        <Code2 size={24} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h2 className="text-lg font-bold text-white">Informe de Arquitectura</h2>
+                          <span className="text-[10px] font-mono font-semibold bg-white/10 text-indigo-200 border border-white/10 px-2.5 py-0.5 rounded-full">
+                            {project?.name}
                           </span>
-                          <span className={`text-[9px] uppercase font-bold px-2 py-0.5 rounded-full ${
-                            isHigh ? 'bg-red-100 text-red-700' : isMedium ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
-                          }`}>
-                            Prioridad {issue.severity}
+                          <span className="text-[10px] font-mono font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2.5 py-0.5 rounded-full">
+                            {architectureReport.architecturePattern || 'N/A'}
                           </span>
                         </div>
-                        <p className="text-slate-700">{issue.description}</p>
-                        {issue.affectedFiles?.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            <span className="text-[10px] font-semibold text-slate-500">Archivos:</span>
-                            {issue.affectedFiles.map((file: string, fIdx: number) => (
-                              <span key={fIdx} className="text-[10px] font-mono bg-white/80 border border-slate-200 px-1.5 py-0.5 rounded text-slate-700">
-                                {file}
+                        <p className="text-xs text-slate-400 mt-0.5">Análisis de código fuente generado con Gemini IA · {new Date().toLocaleDateString('es-ES')}</p>
+                      </div>
+                    </div>
+
+                    {/* Action buttons en header */}
+                    <div className="flex items-center gap-2 flex-wrap shrink-0">
+                      {saveSuccessMsg && (
+                        <span className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1">
+                          <CheckCircle2 size={13} /> {saveSuccessMsg}
+                        </span>
+                      )}
+                      <button
+                        onClick={handleSaveArchitecture}
+                        className={`text-xs px-3.5 py-2 rounded-xl font-semibold border flex items-center gap-1.5 transition-all ${
+                          isSavedArch
+                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
+                            : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/15'
+                        }`}
+                      >
+                        <Bookmark size={13} className={isSavedArch ? 'fill-emerald-400' : ''} />
+                        {isSavedArch ? 'Guardado' : 'Guardar'}
+                      </button>
+                      <button
+                        onClick={() => setArchDocMode(!archDocMode)}
+                        className={`text-xs px-3.5 py-2 rounded-xl font-semibold border flex items-center gap-1.5 transition-all ${
+                          archDocMode
+                            ? 'bg-indigo-400/20 text-indigo-200 border-indigo-400/30'
+                            : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/15'
+                        }`}
+                      >
+                        <FileCode size={13} />
+                        {archDocMode ? 'Vista Normal' : 'Modo Documento'}
+                      </button>
+                      <button
+                        onClick={handleExportPDF}
+                        className="text-xs bg-white/10 hover:bg-white/20 text-slate-200 border border-white/15 px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all"
+                      >
+                        <Printer size={13} />
+                        PDF
+                      </button>
+                      <button
+                        onClick={handleSendArchEmail}
+                        className="text-xs bg-red-500/80 hover:bg-red-500 text-white px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all"
+                      >
+                        <Mail size={13} />
+                        Email
+                      </button>
+                      <button
+                        onClick={() => setShowArchModal(false)}
+                        className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-xl transition-colors ml-1"
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Scores en el header */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    {/* Mantenibilidad */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mantenibilidad</span>
+                      <div className="flex items-end gap-2">
+                        <span className="text-3xl font-black text-emerald-400 leading-none">{architectureReport.maintainabilityScore ?? 0}</span>
+                        <span className="text-xs text-slate-500 mb-0.5">/100</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700"
+                          style={{ width: `${architectureReport.maintainabilityScore ?? 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    {/* Complejidad */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complejidad</span>
+                      <div className="flex items-end gap-2">
+                        <span className="text-3xl font-black text-indigo-300 leading-none">{architectureReport.complexityScore ?? 0}</span>
+                        <span className="text-xs text-slate-500 mb-0.5">/100</span>
+                      </div>
+                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full transition-all duration-700"
+                          style={{ width: `${architectureReport.complexityScore ?? 0}%` }}
+                        />
+                      </div>
+                    </div>
+                    {/* Stack */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tecnologías</span>
+                      <span className="text-3xl font-black text-blue-300 leading-none">{architectureReport.stack?.length || 0}</span>
+                      <p className="text-[10px] text-slate-500">detectadas</p>
+                    </div>
+                    {/* Issues */}
+                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Issues</span>
+                      <span className={`text-3xl font-black leading-none ${(architectureReport.issues?.length || 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                        {architectureReport.issues?.length || 0}
+                      </span>
+                      <p className="text-[10px] text-slate-500">detectados</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* === BODY BLANCO === */}
+                <div className={`bg-white ${archDocMode ? 'p-8' : 'p-6'} space-y-6 max-h-[55vh] overflow-y-auto custom-scrollbar`}>
+                  {!archDocMode ? (
+                    <div className="space-y-6">
+
+                      {/* Overview */}
+                      {architectureReport.overview && (
+                        <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-3">
+                            <div className="w-5 h-5 bg-indigo-100 rounded-lg flex items-center justify-center">
+                              <Cpu size={12} className="text-indigo-600" />
+                            </div>
+                            Visión General
+                          </h4>
+                          <p className="text-sm text-slate-700 leading-relaxed font-sans">
+                            {architectureReport.overview}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Stack Tecnológico */}
+                      {architectureReport.stack?.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                            <div className="w-5 h-5 bg-blue-100 rounded-lg flex items-center justify-center">
+                              <Layers size={12} className="text-blue-600" />
+                            </div>
+                            Stack Tecnológico
+                          </h4>
+                          <div className="flex flex-wrap gap-2">
+                            {architectureReport.stack.map((item: any, idx: number) => (
+                              <span key={idx} className="text-xs bg-slate-900 text-white px-3.5 py-2 rounded-xl font-medium flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                                <strong>{item.name}</strong>
+                                {item.role && <span className="text-slate-400 text-[10px]">· {item.role}</span>}
                               </span>
                             ))}
                           </div>
+                        </div>
+                      )}
+
+                      {/* Issues */}
+                      {architectureReport.issues?.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                            <div className="w-5 h-5 bg-amber-100 rounded-lg flex items-center justify-center">
+                              <AlertCircle size={12} className="text-amber-600" />
+                            </div>
+                            Hallazgos y Problemas Detectados
+                            <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold ml-1">
+                              {architectureReport.issues.length} total
+                            </span>
+                          </h4>
+                          <div className="space-y-3">
+                            {architectureReport.issues.map((issue: any, idx: number) => {
+                              const isHigh = issue.severity === 'high';
+                              const isMedium = issue.severity === 'medium';
+                              return (
+                                <div
+                                  key={idx}
+                                  className={`border-l-4 rounded-r-2xl rounded-l-sm pl-4 pr-4 py-4 space-y-2 ${
+                                    isHigh
+                                      ? 'border-red-500 bg-red-50'
+                                      : isMedium
+                                      ? 'border-amber-500 bg-amber-50'
+                                      : 'border-slate-400 bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <span className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                      {isHigh ? '🔴' : isMedium ? '🟡' : '🟢'}
+                                      {issue.title}
+                                    </span>
+                                    <span className={`text-[9px] uppercase font-bold px-2.5 py-1 rounded-full shrink-0 ${
+                                      isHigh ? 'bg-red-100 text-red-700' : isMedium ? 'bg-amber-100 text-amber-800' : 'bg-slate-200 text-slate-700'
+                                    }`}>
+                                      {issue.severity}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs text-slate-700 leading-relaxed">{issue.description}</p>
+                                  {issue.affectedFiles?.length > 0 && (
+                                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                                      {issue.affectedFiles.map((file: string, fIdx: number) => (
+                                        <span key={fIdx} className="text-[10px] font-mono bg-white border border-slate-200 px-2 py-0.5 rounded-lg text-slate-600">
+                                          {file}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  )}
+                                  {issue.recommendation && (
+                                    <div className="flex items-start gap-2 bg-white border border-indigo-100 rounded-xl p-3 mt-1">
+                                      <span className="text-base shrink-0">💡</span>
+                                      <p className="text-xs text-indigo-800 leading-relaxed">
+                                        <strong>Recomendación:</strong> {issue.recommendation}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Fortalezas y Recomendaciones */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {architectureReport.strengths?.length > 0 && (
+                          <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-3">
+                            <h5 className="text-xs font-bold text-emerald-900 flex items-center gap-2">
+                              <div className="w-5 h-5 bg-emerald-100 rounded-lg flex items-center justify-center">
+                                <Check size={12} className="text-emerald-600" />
+                              </div>
+                              Fortalezas
+                            </h5>
+                            <ul className="space-y-2 text-xs text-emerald-900">
+                              {architectureReport.strengths.map((s: string, idx: number) => (
+                                <li key={idx} className="flex items-start gap-2">
+                                  <span className="text-emerald-500 font-bold shrink-0 mt-0.5">✓</span>
+                                  <span>{s}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
-                        {issue.recommendation && (
-                          <p className="text-[11px] font-medium text-indigo-700 bg-indigo-50/80 rounded-lg p-2 mt-1 border border-indigo-100">
-                            💡 <strong>Recomendación:</strong> {issue.recommendation}
-                          </p>
+
+                        {architectureReport.recommendations?.length > 0 && (
+                          <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 space-y-3">
+                            <h5 className="text-xs font-bold text-indigo-900 flex items-center gap-2">
+                              <div className="w-5 h-5 bg-indigo-100 rounded-lg flex items-center justify-center">
+                                <Sparkles size={12} className="text-indigo-600" />
+                              </div>
+                              Recomendaciones
+                            </h5>
+                            <ul className="space-y-2 text-xs text-indigo-900">
+                              {architectureReport.recommendations.map((r: string, idx: number) => (
+                                <li key={idx} className="flex items-start gap-2">
+                                  <span className="text-indigo-400 font-bold shrink-0 mt-0.5">→</span>
+                                  <span>{r}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
-            {/* Fortalezas y Recomendaciones Generales */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-              {architectureReport.strengths?.length > 0 && (
-                <div className="bg-emerald-50/50 border border-emerald-200 rounded-xl p-3.5 space-y-1.5">
-                  <h5 className="text-xs font-bold text-emerald-900 flex items-center gap-1">
-                    <Check size={14} className="text-emerald-600" /> Fortalezas de la Arquitectura
-                  </h5>
-                  <ul className="space-y-1 text-xs text-emerald-800 pl-4 list-disc">
-                    {architectureReport.strengths.map((s: string, idx: number) => (
-                      <li key={idx}>{s}</li>
-                    ))}
-                  </ul>
+                      {/* Seguridad */}
+                      {architectureReport.securityNotes?.length > 0 && (
+                        <div className="bg-red-50 border border-red-200 rounded-2xl p-5 space-y-3">
+                          <h5 className="text-xs font-bold text-red-800 flex items-center gap-2">
+                            <ShieldAlert size={14} className="text-red-600" /> Notas de Seguridad
+                          </h5>
+                          <ul className="space-y-1.5 text-xs text-red-900 pl-2">
+                            {architectureReport.securityNotes.map((sec: string, idx: number) => (
+                              <li key={idx} className="flex items-start gap-2">
+                                <span className="text-red-500 shrink-0">⚠</span>{sec}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    /* MODO DOCUMENTO FORMAL */
+                    <div className="space-y-6 font-sans text-slate-900 text-xs">
+                      <div className="border-b-2 border-slate-900 pb-5 flex justify-between items-end">
+                        <div>
+                          <h1 className="text-2xl font-black uppercase tracking-tight text-slate-950">Informe de Arquitectura de Software</h1>
+                          <p className="text-xs text-slate-500 mt-1">Proyecto: <strong>{project?.name}</strong> · Fecha: {new Date().toLocaleDateString('es-ES')} · Generado por ForgeMind Intelligence</p>
+                        </div>
+                        <span className="text-xs font-mono font-bold text-indigo-700 text-right">Audit #{id?.substring(0, 8)}</span>
+                      </div>
+                      <section className="space-y-2">
+                        <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">1. Resumen Ejecutivo</h3>
+                        <p className="text-slate-700 leading-relaxed">{architectureReport.overview}</p>
+                      </section>
+                      <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                        <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Patrón</span><p className="font-bold">{architectureReport.architecturePattern || 'N/A'}</p></div>
+                        <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Mantenibilidad</span><p className="font-bold text-emerald-700">{architectureReport.maintainabilityScore}/100</p></div>
+                        <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Complejidad</span><p className="font-bold text-indigo-700">{architectureReport.complexityScore}/100</p></div>
+                      </div>
+                      <section className="space-y-3">
+                        <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">2. Hallazgos Críticos ({architectureReport.issues?.length || 0})</h3>
+                        {architectureReport.issues?.map((issue: any, idx: number) => (
+                          <div key={idx} className="p-4 bg-white border border-slate-200 rounded-xl space-y-1.5">
+                            <p className="font-bold">{idx + 1}. [{issue.severity?.toUpperCase()}] {issue.title}</p>
+                            <p className="text-slate-600">{issue.description}</p>
+                            {issue.recommendation && <p className="text-indigo-800 font-medium">↳ {issue.recommendation}</p>}
+                          </div>
+                        ))}
+                      </section>
+                      <section className="space-y-2">
+                        <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">3. Recomendaciones</h3>
+                        <ul className="space-y-1 pl-4 list-disc text-slate-700">
+                          {architectureReport.recommendations?.map((r: string, idx: number) => <li key={idx}>{r}</li>)}
+                        </ul>
+                      </section>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              {architectureReport.recommendations?.length > 0 && (
-                <div className="bg-indigo-50/50 border border-indigo-200 rounded-xl p-3.5 space-y-1.5">
-                  <h5 className="text-xs font-bold text-indigo-900 flex items-center gap-1">
-                    <Sparkles size={14} className="text-indigo-600" /> Recomendaciones Generales
-                  </h5>
-                  <ul className="space-y-1 text-xs text-indigo-800 pl-4 list-disc">
-                    {architectureReport.recommendations.map((r: string, idx: number) => (
-                      <li key={idx}>{r}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+              </motion.div>
             </div>
+          )}
+        </AnimatePresence>
 
-            {/* Advertencias de Seguridad (si aplican) */}
-            {architectureReport.securityNotes?.length > 0 && (
-              <div className="bg-red-50 border border-red-200 rounded-xl p-3.5 space-y-1.5 text-xs text-red-900">
-                <h5 className="font-bold flex items-center gap-1 text-red-700">
-                  <ShieldAlert size={14} /> Observaciones de Seguridad
-                </h5>
-                <ul className="space-y-1 pl-4 list-disc text-red-800">
-                  {architectureReport.securityNotes.map((sec: string, idx: number) => (
-                    <li key={idx}>{sec}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
 
         {/* Live Git Activity Graph & Development Timeline */}
         {(connectedRepos.length > 0 || gitActivity) && (
