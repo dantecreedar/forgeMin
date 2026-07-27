@@ -12,6 +12,7 @@ import {
   FolderGit2,
   Users,
   Sparkles,
+  Target,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -59,11 +60,12 @@ export function Sidebar() {
 
   // Herramientas filtradas por modo
   const navItems = [
-    { href: '/dashboard', label: t.sidebar.intelligence, icon: LayoutDashboard },
-    { href: '/saved-chats', label: t.sidebar.savedChats, icon: Save },
+    { href: '/dashboard', label: t.sidebar.intelligence, icon: LayoutDashboard, mode: 'common' },
+    { href: '/saved-chats', label: t.sidebar.savedChats, icon: Save, mode: 'common' },
     { href: '/workspaces', label: t.sidebar.workspaces, icon: Folder, mode: 'management' },
+    { href: '/objectives', label: 'Objetivos & Metas', icon: Target, mode: 'management' },
     { href: '/repositories', label: t.sidebar.repositories, icon: FolderGit2, mode: 'dev' },
-    { href: '/dashboard/leads', label: 'Prospección & Leads', icon: Users, mode: 'leads' },
+    { href: '/dashboard/leads', label: 'Prospección & Leads', icon: Users, mode: 'founder' },
   ];
 
   const [collapsed, setCollapsed] = useState(false);
@@ -85,9 +87,16 @@ export function Sidebar() {
   const activeSessionId = searchParams.get('session');
 
   const filteredNavItems = navItems.filter((item) => {
-    if (!item.mode) return true; // Comunes (Intelligence, Saved Chats)
-    if (isFounderMode) return true; // Modo Fundador tiene acceso total a todas las herramientas
-    return item.mode === appMode;
+    if (appMode === 'founder') {
+      return item.mode === 'founder';
+    }
+    if (appMode === 'dev') {
+      return item.mode === 'dev' || item.mode === 'management' || item.mode === 'common';
+    }
+    if (appMode === 'management') {
+      return item.mode === 'management' || item.mode === 'common';
+    }
+    return false;
   });
 
   const loadSessionsAndProjects = async () => {
@@ -250,21 +259,17 @@ export function Sidebar() {
                   className={`text-[9px] font-bold tracking-wide mt-1 px-1.5 py-0.5 rounded-md w-fit flex items-center gap-1 border ${
                     isFounderMode
                       ? 'bg-amber-500/15 text-amber-300 border-amber-500/30'
-                      : isLeadsMode
-                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
                       : isDevMode
                       ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
                       : 'bg-blue-500/15 text-blue-300 border-blue-500/30'
                   }`}
                 >
                   {isFounderMode ? (
-                    <><Sparkles size={10} /> Modo Fundador (Total)</>
-                  ) : isLeadsMode ? (
-                    <><Users size={10} /> Modo Leads / Negocios</>
+                    <><Sparkles size={10} /> Fundador</>
                   ) : isDevMode ? (
-                    <><Code2 size={10} /> Modo Dev</>
+                    <><Code2 size={10} /> Dev</>
                   ) : (
-                    <><ShieldCheck size={10} /> Modo Gestión</>
+                    <><ShieldCheck size={10} /> Gestión</>
                   )}
                 </span>
               </div>
@@ -533,21 +538,8 @@ export function Sidebar() {
                       isFounderMode ? 'bg-amber-500/20 text-amber-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <span className="flex items-center gap-2"><Sparkles size={14} className="text-amber-400" /> Modo Fundador (Acceso Total)</span>
+                    <span className="flex items-center gap-2"><Sparkles size={14} className="text-amber-400" /> Fundador</span>
                     {isFounderMode && <Check size={12} />}
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      setAppMode('leads');
-                      setShowProfileSubmenu(false);
-                    }}
-                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl transition-all ${
-                      isLeadsMode && !isFounderMode ? 'bg-emerald-500/20 text-emerald-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
-                    }`}
-                  >
-                    <span className="flex items-center gap-2"><Users size={14} className="text-emerald-400" /> Modo Leads / Negocios</span>
-                    {isLeadsMode && !isFounderMode && <Check size={12} />}
                   </button>
 
                   <button
@@ -559,7 +551,7 @@ export function Sidebar() {
                       isDevMode && !isFounderMode ? 'bg-purple-500/20 text-purple-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <span className="flex items-center gap-2"><Code2 size={14} className="text-purple-400" /> Modo Dev</span>
+                    <span className="flex items-center gap-2"><Code2 size={14} className="text-purple-400" /> Dev</span>
                     {isDevMode && !isFounderMode && <Check size={12} />}
                   </button>
 
@@ -572,7 +564,7 @@ export function Sidebar() {
                       isManagementMode && !isFounderMode ? 'bg-blue-500/20 text-blue-300 font-semibold' : 'text-slate-300 hover:bg-slate-800'
                     }`}
                   >
-                    <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-blue-400" /> Modo Gestión</span>
+                    <span className="flex items-center gap-2"><ShieldCheck size={14} className="text-blue-400" /> Gestión</span>
                     {isManagementMode && !isFounderMode && <Check size={12} />}
                   </button>
                 </div>

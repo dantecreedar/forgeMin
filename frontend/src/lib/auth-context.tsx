@@ -15,7 +15,7 @@ interface AuthUser {
   photoUrl?: string;
 }
 
-export type AppMode = 'management' | 'dev' | 'founder' | 'leads';
+export type AppMode = 'management' | 'dev' | 'founder';
 
 interface AuthContextType {
   user: AuthUser | null;
@@ -47,7 +47,7 @@ const AuthContext = createContext<AuthContextType>({
   appMode: 'founder',
   isDevMode: false,
   isFounderMode: true,
-  isLeadsMode: false,
+  isLeadsMode: true,
   isManagementMode: false,
 });
 
@@ -208,9 +208,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const isFounderMode = appMode === 'founder';
-  const isLeadsMode = appMode === 'leads' || appMode === 'founder';
   const isDevMode = appMode === 'dev' || appMode === 'founder';
   const isManagementMode = appMode === 'management' || appMode === 'founder';
+  const isLeadsMode = isFounderMode;
 
   return (
     <AuthContext.Provider value={{

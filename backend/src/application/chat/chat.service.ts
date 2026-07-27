@@ -1,7 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { GeminiService, ChatMessage } from '../../infrastructure/gemini/gemini.service';
 import { ObjectiveApplicationService } from '../objective/objective.service';
 import { ProjectApplicationService } from '../project/project.service';
+import { ILeadRepository, Lead, LeadStatus, OutreachChannel } from '../../domain/entities/lead.entity';
 
 export interface ChatSession {
   id: string;
@@ -27,6 +28,7 @@ export class ChatService {
     private readonly gemini: GeminiService,
     private readonly objectives: ObjectiveApplicationService,
     private readonly projects: ProjectApplicationService,
+    @Inject('ILeadRepository') private readonly leadRepository: ILeadRepository,
   ) {}
 
   getSessions(): ChatSession[] {
@@ -123,54 +125,66 @@ export class ChatService {
         Analiza el siguiente mensaje del usuario en un contexto comercial / prospección de leads:
         "${message}"
 
-        Extrae los siguientes datos si están presentes y responde únicamente en JSON:
+        Actúa como un buscador de prospectos. Debes generar un contacto realista (simulado) que coincida perfectamente con la solicitud del usuario (industria, rol, etc).
+        Genera los siguientes datos y responde únicamente en JSON puro (sin markdown, sin comillas invertidas):
         {
-          "isCreateLead": boolean,
-          "name": string o null,
-          "email": string o null,
-          "company": string o null,
-          "role": string o null,
-          "domain": string o null,
-          "reply": "Resumen claro de lo que la IA entendió y ejecutará"
+          "isCreateLead": true,
+          "name": "Nombre y apellido realista",
+          "email": "email corporativo realista",
+          "company": "Empresa realista según la industria",
+          "role": "El rol solicitado",
+          "domain": "dominio.com",
+          "linkedinUrl": "https://linkedin.com/in/perfil-realista",
+          "reply": "Resumen claro de lo que la IA encontró y el prospecto generado"
         }
         `;
 
         const aiResponse = await this.gemini.chat([{ role: 'user', content: leadPrompt }]);
-        const cleanJsonStr = aiResponse.reply.replace(/```json/g, '').replace(/```/g, '').trim();
+        const cleanJsonStr = aiResponse.reply.replace(/```json/gi, '').replace(/```/g, '').trim();
         const parsed = JSON.parse(cleanJsonStr);
 
         if (parsed.isCreateLead || parsed.email || parsed.company) {
           const leadId = `lead_${Date.now()}`;
-          const leadData = {
-            id: leadId,
-            name: parsed.name || 'Prospecto sin nombre',
-            email: parsed.email || 'sin-email@empresa.com',
-            company: parsed.company || 'Empresa Prospecto',
-            role: parsed.role || 'Ejecutivo',
-            status: 'ENRICHED',
-            aiScore: {
+          const newLead = new Lead(
+            leadId,
+            parsed.name || 'Prospecto sin nombre',
+            parsed.email || 'sin-email@empresa.com',
+            parsed.company || 'Empresa Prospecto',
+            parsed.role || 'Ejecutivo',
+            parsed.linkedinUrl || 'https://linkedin.com',
+            LeadStatus.ENRICHED,
+            undefined, // companyContext
+            {
               score: 92,
               reasoning: `Gran oportunidad detectada para ${parsed.company || 'la empresa'}. Alta compatibilidad con la infraestructura de desarrollo de ForgeMind.`,
               keySynergies: ['Automatización de pipelines de desarrollo', 'Integración directa con repositorios GitHub'],
             },
-            drafts: [
+            [
               {
-                channel: 'GMAIL',
+                channel: OutreachChannel.GMAIL,
                 subject: `Solución de Inteligencia para ${parsed.company || 'tu empresa'}`,
                 body: `Hola ${parsed.name || 'estimado'},\n\nHe visto el crecimiento de ${parsed.company || 'tu equipo'} y quería compartirte cómo nuestra plataforma puede optimizar su desarrollo conectando GitHub con IA.\n\n¿Te gustaría agendar una demo corta?`,
+                generatedAt: new Date(),
               },
               {
-                channel: 'LINKEDIN',
+                channel: OutreachChannel.LINKEDIN,
                 subject: 'Conexión estratégica',
                 body: `Hola ${parsed.name || ''}, me encantaría conectar contigo para compartir ideas sobre optimización de desarrollo con IA.`,
+                generatedAt: new Date(),
               },
             ],
-          };
+            [], // dripSequence
+            [], // replies
+            new Date(),
+            new Date()
+          );
+
+          await this.leadRepository.save(newLead);
 
           return {
             type: 'lead_action',
             message: parsed.reply || (isEnglish ? 'Lead created and enriched with AI strategy:' : 'Lead registrado y analizado estratégicamente con IA:'),
-            lead: leadData,
+            lead: newLead,
           };
         }
       } catch {

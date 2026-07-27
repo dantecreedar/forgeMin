@@ -37,6 +37,7 @@ export class CreateLeadUseCase {
       const enrichment = await this.geminiEnrichmentService.analyzeLeadSynergy(newLead);
       newLead.aiScore = enrichment.score;
       newLead.drafts = enrichment.drafts;
+      newLead.dripSequence = enrichment.dripSequence || [];
       newLead.status = LeadStatus.ENRICHED;
     } catch (err: any) {
       console.warn('Falló el enriquecimiento automático del lead con Gemini:', err?.message || err);

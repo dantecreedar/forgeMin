@@ -32,6 +32,25 @@ export interface OutreachDraft {
   generatedAt: Date;
 }
 
+export interface DripStep {
+  stepNumber: number;
+  delayDays: number;
+  subject?: string;
+  body: string;
+  sentAt?: Date;
+  status: 'PENDING' | 'SENT' | 'SKIPPED';
+}
+
+export interface LeadReply {
+  id: string;
+  receivedAt: Date;
+  fromEmail: string;
+  subject: string;
+  body: string;
+  aiSentiment?: 'INTERESTED' | 'NOT_INTERESTED' | 'MORE_INFO';
+  aiSuggestedReply?: string;
+}
+
 export class Lead {
   constructor(
     public readonly id: string,
@@ -44,6 +63,8 @@ export class Lead {
     public companyContext?: CompanyContext,
     public aiScore?: LeadScore,
     public drafts: OutreachDraft[] = [],
+    public dripSequence: DripStep[] = [],
+    public replies: LeadReply[] = [],
     public createdAt: Date = new Date(),
     public updatedAt: Date = new Date(),
   ) {}

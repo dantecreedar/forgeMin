@@ -81,6 +81,11 @@ import { SendOutreachUseCase } from './application/use-cases/leads/send-outreach
 import { GeminiLeadEnrichmentService } from './infrastructure/services/gemini-lead-enrichment.service';
 import { GmailOutreachService } from './infrastructure/services/gmail-outreach.service';
 import { InMemoryLeadRepository } from './infrastructure/repositories/in-memory-lead.repository';
+import { LeadDripSequenceCronService } from './infrastructure/services/lead-drip-sequence-cron.service';
+import { HunterEnrichmentService } from './infrastructure/services/hunter-enrichment.service';
+
+import { LinkedInService } from './infrastructure/linkedin/linkedin.service';
+import { LinkedInController } from './presentation/controllers/linkedin.controller';
 
 const firestoreProviders = [
   { provide: AUTH_REPOSITORY, useClass: FirestoreAuthRepository },
@@ -117,6 +122,7 @@ const firestoreProviders = [
     GmailController,
     DriveController,
     LeadsController,
+    LinkedInController,
   ],
   providers: [
     AuthApplicationService,
@@ -149,6 +155,9 @@ const firestoreProviders = [
     SendOutreachUseCase,
     GeminiLeadEnrichmentService,
     GmailOutreachService,
+    LeadDripSequenceCronService,
+    HunterEnrichmentService,
+    LinkedInService,
     { provide: GITHUB_CLIENT, useClass: GitHubClientService },
     { provide: AUTH_SERVICE, useClass: FirebaseAuthService },
     ...firestoreProviders,

@@ -12,7 +12,7 @@ export class GeminiLeadEnrichmentService {
     }
   }
 
-  async analyzeLeadSynergy(lead: Lead): Promise<{ score: LeadScore; drafts: OutreachDraft[] }> {
+  async analyzeLeadSynergy(lead: Lead): Promise<{ score: LeadScore; drafts: OutreachDraft[]; dripSequence?: any[] }> {
     const projectContext = `
     Nombre del Proyecto: ForgeMind / Platform
     Descripción: Plataforma de inteligencia en ingeniería que integra repositorios de GitHub con IA (Gemini) para automatización, arquitectura limpia y optimización de código.
@@ -30,14 +30,16 @@ export class GeminiLeadEnrichmentService {
     Contexto del Proyecto:
     ${projectContext}
 
-    Genera una respuesta en formato JSON estrictamente válido con el siguiente esquema:
+    Genera una respuesta en formato JSON strictly válido con el siguiente esquema:
     {
       "score": número del 0 al 100 de coincidencia/sinergia,
       "reasoning": "Explicación breve de por qué encaja o no este prospecto",
       "keySynergies": ["Punto de valor 1", "Punto de valor 2"],
       "emailSubject": "Asunto de correo frío altamente relevante",
       "emailBody": "Cuerpo del correo personalizado conectando los beneficios del proyecto con la empresa del lead",
-      "linkedinMessage": "Mensaje corto e impacto directo para conectar por LinkedIn"
+      "linkedinMessage": "Mensaje corto e impacto directo para conectar por LinkedIn",
+      "dripFollowUp1": "Mensaje corto de seguimiento para el Día 3 enfocado en el ROI",
+      "dripFollowUp2": "Mensaje final de seguimiento para el Día 7 ofreciendo una demo ejecutiva"
     }
     `;
 
@@ -76,6 +78,22 @@ export class GeminiLeadEnrichmentService {
             generatedAt: new Date(),
           },
         ],
+        dripSequence: [
+          {
+            stepNumber: 1,
+            delayDays: 3,
+            subject: `Re: ${parsed.emailSubject || `Propuesta para ${lead.company}`}`,
+            body: parsed.dripFollowUp1 || `Hola ${lead.name},\n\nQuería dar seguimiento a mi correo anterior sobre cómo estamos ayudando a empresas como ${lead.company} a acelerar su entrega de software con IA.\n\n¿Tienes 5 minutos esta semana para revisarlo?`,
+            status: 'PENDING',
+          },
+          {
+            stepNumber: 2,
+            delayDays: 7,
+            subject: `Último intento: Optimización en ${lead.company}`,
+            body: parsed.dripFollowUp2 || `Hola ${lead.name},\n\nEntiendo que estás ocupado. Si en algún momento te interesa explorar cómo automatizar el flujo entre GitHub y tu equipo, quedo a tu disposición.\n\nUn saludo.`,
+            status: 'PENDING',
+          },
+        ],
       };
     } catch (err: any) {
       console.warn('Error al llamar a Gemini API en LeadEnrichment:', err?.message || err);
@@ -83,7 +101,7 @@ export class GeminiLeadEnrichmentService {
     }
   }
 
-  private getMockEnrichment(lead: Lead): { score: LeadScore; drafts: OutreachDraft[] } {
+  private getMockEnrichment(lead: Lead): { score: LeadScore; drafts: OutreachDraft[]; dripSequence: any[] } {
     return {
       score: {
         score: 88,
@@ -105,6 +123,22 @@ export class GeminiLeadEnrichmentService {
           subject: 'Conexión estratégica',
           body: `Hola ${lead.name}, vi tu rol en ${lead.company} y me gustaría conectar contigo para compartir cómo estamos aplicando IA en ingeniería de software.`,
           generatedAt: new Date(),
+        },
+      ],
+      dripSequence: [
+        {
+          stepNumber: 1,
+          delayDays: 3,
+          subject: `Re: Automatización para ${lead.company}`,
+          body: `Hola ${lead.name},\n\nQuería hacer un breve seguimiento a mi propuesta anterior. ¿Tuviste oportunidad de revisarla?`,
+          status: 'PENDING',
+        },
+        {
+          stepNumber: 2,
+          delayDays: 7,
+          subject: `Último contacto: Optimización de software`,
+          body: `Hola ${lead.name},\n\nSi te interesa agendar una llamada cuando tengas disponibilidad, quedo a tu entera disposición.`,
+          status: 'PENDING',
         },
       ],
     };
