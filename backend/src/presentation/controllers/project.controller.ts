@@ -64,6 +64,8 @@ export class ProjectController {
       repo.defaultBranch,
       userGithubToken,
     );
+    // Persist the generated architecture report in database
+    await this.projectService.updateArchitectureReport(id, report);
     return { success: true, report, repoName: repo.fullName };
   }
 

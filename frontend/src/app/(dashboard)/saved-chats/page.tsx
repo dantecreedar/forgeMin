@@ -259,7 +259,7 @@ export default function SavedChatsPage() {
               {allSavedReports.map((item) => (
                 <div
                   key={item.id}
-                  onClick={() => router.push(`/projects/${item.projectId}`)}
+                  onClick={() => router.push(`/projects/${item.projectId}?openArch=true`)}
                   className="bg-white border border-slate-200 hover:border-indigo-500/40 rounded-3xl p-5 shadow-2xs hover:shadow-md transition-all cursor-pointer space-y-3 group"
                 >
                   <div className="flex items-start justify-between gap-2">

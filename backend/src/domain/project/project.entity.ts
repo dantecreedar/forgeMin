@@ -8,6 +8,7 @@ export interface IProject {
   createdAt: Date;
   updatedAt: Date;
   isArchived: boolean;
+  architectureReport?: any;
 }
 
 export class Project implements IProject {
@@ -21,6 +22,7 @@ export class Project implements IProject {
     public readonly createdAt: Date,
     public readonly updatedAt: Date,
     public readonly isArchived: boolean,
+    public readonly architectureReport?: any,
   ) {}
 
   addRepository(repoId: string): Project {
@@ -28,7 +30,7 @@ export class Project implements IProject {
     return new Project(
       this.id, this.workspaceId, this.name, this.description,
       [...this.repositoryIds, repoId], this.objectiveIds,
-      this.createdAt, new Date(), this.isArchived,
+      this.createdAt, new Date(), this.isArchived, this.architectureReport,
     );
   }
 
@@ -37,7 +39,7 @@ export class Project implements IProject {
     return new Project(
       this.id, this.workspaceId, this.name, this.description,
       this.repositoryIds, [...this.objectiveIds, objectiveId],
-      this.createdAt, new Date(), this.isArchived,
+      this.createdAt, new Date(), this.isArchived, this.architectureReport,
     );
   }
 
@@ -47,7 +49,15 @@ export class Project implements IProject {
       data.name ?? this.name,
       data.description !== undefined ? data.description : this.description,
       this.repositoryIds, this.objectiveIds,
-      this.createdAt, new Date(), this.isArchived,
+      this.createdAt, new Date(), this.isArchived, this.architectureReport,
+    );
+  }
+
+  updateArchitectureReport(report: any): Project {
+    return new Project(
+      this.id, this.workspaceId, this.name, this.description,
+      this.repositoryIds, this.objectiveIds,
+      this.createdAt, new Date(), this.isArchived, report,
     );
   }
 
@@ -55,7 +65,7 @@ export class Project implements IProject {
     return new Project(
       this.id, this.workspaceId, this.name, this.description,
       this.repositoryIds, this.objectiveIds,
-      this.createdAt, new Date(), true,
+      this.createdAt, new Date(), true, this.architectureReport,
     );
   }
 }

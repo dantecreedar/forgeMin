@@ -98,27 +98,51 @@ export default function ProjectDetailPage() {
   };
 
   const handleExportPDF = () => {
-    window.print();
+    const prevMode = archDocMode;
+    setArchDocMode(true);
+    setTimeout(() => {
+      window.print();
+      setArchDocMode(prevMode);
+    }, 200);
   };
 
   const handleSendArchEmail = () => {
     if (!architectureReport) return;
-    const summaryText = `INFORME DE ARQUITECTURA Y CÓDIGO - ${project?.name || 'PROYECTO'}
-Patrón: ${architectureReport.architecturePattern || 'N/A'}
+    
+    const cleanMarkdown = (str: string) => {
+      if (!str) return '';
+      return str
+        .replace(/\*{1,3}/g, '') // Elimina asteriscos de negrita/itálica
+        .replace(/`/g, '')       // Elimina comillas de código
+        .trim();
+    };
+
+    const cleanIssues = (architectureReport.issues || []).map((i: any, idx: number) => {
+      const severity = i.severity ? `[Prioridad: ${i.severity.toUpperCase()}]` : '';
+      const title = cleanMarkdown(i.title);
+      const desc = cleanMarkdown(i.description);
+      const rec = i.recommendation ? `\n   Recomendación: ${cleanMarkdown(i.recommendation)}` : '';
+      return `${idx + 1}. ${severity} ${title}\n   Detalle: ${desc}${rec}`;
+    }).join('\n\n');
+
+    const cleanStrengths = (architectureReport.strengths || []).map((s: string) => `• ${cleanMarkdown(s)}`).join('\n');
+    const cleanRecommendations = (architectureReport.recommendations || []).map((r: string) => `• ${cleanMarkdown(r)}`).join('\n');
+
+    const summaryText = `INFORME DE ARQUITECTURA Y CÓDIGO - ${project?.name?.toUpperCase() || 'PROYECTO'}
+Patrón de Arquitectura: ${architectureReport.architecturePattern || 'N/A'}
 Mantenibilidad: ${architectureReport.maintainabilityScore ?? 0}/100 | Complejidad: ${architectureReport.complexityScore ?? 0}/100
 
-Resumen General:
-${architectureReport.overview || 'Sin descripción'}
+Resumen Ejecutivo:
+${cleanMarkdown(architectureReport.overview) || 'Sin descripción disponible.'}
 
-Issues Detectados (${architectureReport.issues?.length || 0}):
-${(architectureReport.issues || []).map((i: any, idx: number) => `${idx + 1}. [${i.severity?.toUpperCase()}] ${i.title}: ${i.description} (Rec: ${i.recommendation})`).join('\n\n')}
+Hallazgos e Issues Detectados (${architectureReport.issues?.length || 0}):
+${cleanIssues || 'Ningún issue crítico detectado.'}
 
-Fortalezas:
-${(architectureReport.strengths || []).map((s: string) => `• ${s}`).join('\n')}
+Fortalezas del Sistema:
+${cleanStrengths || 'Sin fortalezas registradas.'}
 
-Recomendaciones:
-${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join('\n')}
-`;
+Recomendaciones de Mejora:
+${cleanRecommendations || 'Sin recomendaciones registradas.'}`;
 
     setEmailSubject(`[ForgeMind] Informe de Arquitectura de Código: ${project?.name || 'Proyecto'}`);
     setEmailContent(summaryText);
@@ -235,7 +259,7 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
       });
 
       if (res.success) {
-        setEmailSuccessMsg('¡Correo enviado exitosamente mediante Gmail API!');
+        setEmailSuccessMsg('¡Correo enviado exitosamente!');
         setTimeout(() => setShowEmailModal(false), 2000);
       } else {
         const errorMsg = res.message || 'Error al despachar el correo.';
@@ -270,6 +294,11 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
       setDocuments(docRes.documents || []);
       setEditName(projRes.project?.name || '');
       setEditDesc(projRes.project?.description || '');
+
+      // Load persisted architecture report if exists
+      if (projRes.project?.architectureReport) {
+        setArchitectureReport(projRes.project.architectureReport);
+      }
 
       // Load Status Summary & Git Activity
       api.projects.getStatusSummary(id)
@@ -306,6 +335,15 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
 
   useEffect(() => {
     loadData(true); // Auto-sync on page mount!
+
+    // Check if redirect requested auto opening of architecture modal
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('openArch') === 'true') {
+        setShowArchModal(true);
+      }
+    }
+
     const handleRefresh = () => loadData(false);
     window.addEventListener('forgemind:refresh', handleRefresh);
 
@@ -875,32 +913,32 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                 transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 className="w-full max-w-4xl mx-auto my-10 rounded-3xl overflow-hidden shadow-2xl border border-white/10"
               >
-                {/* === HEADER OSCURO CON GRADIENTE === */}
-                <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 px-7 pt-7 pb-6 space-y-5">
+                {/* === HEADER PLANO NEUTRAL (Estilo ChatGPT / Informe Formal) === */}
+                <div className="bg-white border-b border-slate-200 px-7 pt-7 pb-6 space-y-5 text-slate-900">
                   {/* Top bar */}
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 bg-indigo-500/20 border border-indigo-400/30 rounded-2xl flex items-center justify-center text-indigo-300 shrink-0">
+                      <div className="w-12 h-12 bg-slate-100 border border-slate-200 rounded-2xl flex items-center justify-center text-slate-700 shrink-0">
                         <Code2 size={24} />
                       </div>
                       <div>
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h2 className="text-lg font-bold text-white">Informe de Arquitectura</h2>
-                          <span className="text-[10px] font-mono font-semibold bg-white/10 text-indigo-200 border border-white/10 px-2.5 py-0.5 rounded-full">
+                          <h2 className="text-lg font-black text-slate-900 tracking-tight">Informe de Auditoría de Arquitectura</h2>
+                          <span className="text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 rounded-full">
                             {project?.name}
                           </span>
-                          <span className="text-[10px] font-mono font-semibold bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 px-2.5 py-0.5 rounded-full">
+                          <span className="text-[10px] font-mono font-bold bg-blue-50 text-blue-700 border border-blue-150 px-2.5 py-0.5 rounded-full">
                             {architectureReport.architecturePattern || 'N/A'}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-0.5">Análisis de código fuente generado con Gemini IA · {new Date().toLocaleDateString('es-ES')}</p>
+                        <p className="text-xs text-slate-500 mt-0.5">Análisis técnico de código fuente · {new Date().toLocaleDateString('es-ES')}</p>
                       </div>
                     </div>
 
                     {/* Action buttons en header */}
                     <div className="flex items-center gap-2 flex-wrap shrink-0">
                       {saveSuccessMsg && (
-                        <span className="text-xs text-emerald-400 bg-emerald-400/10 border border-emerald-400/20 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1">
+                        <span className="text-xs text-blue-700 bg-blue-50 border border-blue-100 px-3 py-1.5 rounded-xl font-medium flex items-center gap-1">
                           <CheckCircle2 size={13} /> {saveSuccessMsg}
                         </span>
                       )}
@@ -908,19 +946,19 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                         onClick={handleSaveArchitecture}
                         className={`text-xs px-3.5 py-2 rounded-xl font-semibold border flex items-center gap-1.5 transition-all ${
                           isSavedArch
-                            ? 'bg-emerald-500/20 text-emerald-300 border-emerald-400/30'
-                            : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/15'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
                         }`}
                       >
-                        <Bookmark size={13} className={isSavedArch ? 'fill-emerald-400' : ''} />
+                        <Bookmark size={13} className={isSavedArch ? 'fill-blue-600 text-blue-600' : ''} />
                         {isSavedArch ? 'Guardado' : 'Guardar'}
                       </button>
                       <button
                         onClick={() => setArchDocMode(!archDocMode)}
                         className={`text-xs px-3.5 py-2 rounded-xl font-semibold border flex items-center gap-1.5 transition-all ${
                           archDocMode
-                            ? 'bg-indigo-400/20 text-indigo-200 border-indigo-400/30'
-                            : 'bg-white/10 hover:bg-white/20 text-slate-200 border-white/15'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-200'
                         }`}
                       >
                         <FileCode size={13} />
@@ -928,21 +966,21 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                       </button>
                       <button
                         onClick={handleExportPDF}
-                        className="text-xs bg-white/10 hover:bg-white/20 text-slate-200 border border-white/15 px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all"
+                        className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all"
                       >
                         <Printer size={13} />
                         PDF
                       </button>
                       <button
                         onClick={handleSendArchEmail}
-                        className="text-xs bg-red-500/80 hover:bg-red-500 text-white px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all"
+                        className="text-xs bg-blue-600 hover:bg-blue-750 text-white px-3.5 py-2 rounded-xl font-semibold flex items-center gap-1.5 transition-all shadow-2xs"
                       >
                         <Mail size={13} />
                         Email
                       </button>
                       <button
                         onClick={() => setShowArchModal(false)}
-                        className="text-slate-400 hover:text-white p-2 hover:bg-white/10 rounded-xl transition-colors ml-1"
+                        className="text-slate-400 hover:text-slate-600 p-2 hover:bg-slate-100 rounded-xl transition-colors ml-1"
                       >
                         <X size={18} />
                       </button>
@@ -952,43 +990,43 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                   {/* Scores en el header */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {/* Mantenibilidad */}
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Mantenibilidad</span>
-                      <div className="flex items-end gap-2">
-                        <span className="text-3xl font-black text-emerald-400 leading-none">{architectureReport.maintainabilityScore ?? 0}</span>
-                        <span className="text-xs text-slate-500 mb-0.5">/100</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-slate-800">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Mantenibilidad</span>
+                      <div className="flex items-end gap-1">
+                        <span className="text-3xl font-black text-blue-600 leading-none">{architectureReport.maintainabilityScore ?? 0}</span>
+                        <span className="text-xs text-slate-400 mb-0.5">/100</span>
                       </div>
-                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-emerald-500 to-emerald-400 rounded-full transition-all duration-700"
+                          className="h-full bg-blue-600 rounded-full transition-all duration-700"
                           style={{ width: `${architectureReport.maintainabilityScore ?? 0}%` }}
                         />
                       </div>
                     </div>
                     {/* Complejidad */}
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Complejidad</span>
-                      <div className="flex items-end gap-2">
-                        <span className="text-3xl font-black text-indigo-300 leading-none">{architectureReport.complexityScore ?? 0}</span>
-                        <span className="text-xs text-slate-500 mb-0.5">/100</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-slate-800">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Complejidad</span>
+                      <div className="flex items-end gap-1">
+                        <span className="text-3xl font-black text-slate-800 leading-none">{architectureReport.complexityScore ?? 0}</span>
+                        <span className="text-xs text-slate-400 mb-0.5">/100</span>
                       </div>
-                      <div className="w-full h-1.5 bg-white/10 rounded-full overflow-hidden">
+                      <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-indigo-400 to-purple-400 rounded-full transition-all duration-700"
+                          className="h-full bg-slate-700 rounded-full transition-all duration-700"
                           style={{ width: `${architectureReport.complexityScore ?? 0}%` }}
                         />
                       </div>
                     </div>
                     {/* Stack */}
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Tecnologías</span>
-                      <span className="text-3xl font-black text-blue-300 leading-none">{architectureReport.stack?.length || 0}</span>
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-slate-800">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tecnologías</span>
+                      <span className="text-3xl font-black text-slate-900 leading-none">{architectureReport.stack?.length || 0}</span>
                       <p className="text-[10px] text-slate-500">detectadas</p>
                     </div>
                     {/* Issues */}
-                    <div className="bg-white/5 border border-white/10 rounded-2xl p-4 space-y-2">
-                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Issues</span>
-                      <span className={`text-3xl font-black leading-none ${(architectureReport.issues?.length || 0) > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                    <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-2 text-slate-800">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Issues</span>
+                      <span className={`text-3xl font-black leading-none ${(architectureReport.issues?.length || 0) > 0 ? 'text-amber-600' : 'text-blue-600'}`}>
                         {architectureReport.issues?.length || 0}
                       </span>
                       <p className="text-[10px] text-slate-500">detectados</p>
@@ -1158,42 +1196,61 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                       )}
                     </div>
                   ) : (
-                    /* MODO DOCUMENTO FORMAL */
-                    <div className="space-y-6 font-sans text-slate-900 text-xs">
-                      <div className="border-b-2 border-slate-900 pb-5 flex justify-between items-end">
-                        <div>
-                          <h1 className="text-2xl font-black uppercase tracking-tight text-slate-950">Informe de Arquitectura de Software</h1>
-                          <p className="text-xs text-slate-500 mt-1">Proyecto: <strong>{project?.name}</strong> · Fecha: {new Date().toLocaleDateString('es-ES')} · Generado por ForgeMind Intelligence</p>
-                        </div>
-                        <span className="text-xs font-mono font-bold text-indigo-700 text-right">Audit #{id?.substring(0, 8)}</span>
-                      </div>
-                      <section className="space-y-2">
-                        <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">1. Resumen Ejecutivo</h3>
-                        <p className="text-slate-700 leading-relaxed">{architectureReport.overview}</p>
-                      </section>
-                      <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                        <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Patrón</span><p className="font-bold">{architectureReport.architecturePattern || 'N/A'}</p></div>
-                        <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Mantenibilidad</span><p className="font-bold text-emerald-700">{architectureReport.maintainabilityScore}/100</p></div>
-                        <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Complejidad</span><p className="font-bold text-indigo-700">{architectureReport.complexityScore}/100</p></div>
-                      </div>
-                      <section className="space-y-3">
-                        <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">2. Hallazgos Críticos ({architectureReport.issues?.length || 0})</h3>
-                        {architectureReport.issues?.map((issue: any, idx: number) => (
-                          <div key={idx} className="p-4 bg-white border border-slate-200 rounded-xl space-y-1.5">
-                            <p className="font-bold">{idx + 1}. [{issue.severity?.toUpperCase()}] {issue.title}</p>
-                            <p className="text-slate-600">{issue.description}</p>
-                            {issue.recommendation && <p className="text-indigo-800 font-medium">↳ {issue.recommendation}</p>}
-                          </div>
-                        ))}
-                      </section>
-                      <section className="space-y-2">
-                        <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">3. Recomendaciones</h3>
-                        <ul className="space-y-1 pl-4 list-disc text-slate-700">
-                          {architectureReport.recommendations?.map((r: string, idx: number) => <li key={idx}>{r}</li>)}
-                        </ul>
-                      </section>
-                    </div>
-                  )}
+                     /* MODO DOCUMENTO FORMAL */
+                     <div id="print-area" className="space-y-6 font-sans text-slate-900 text-xs bg-white p-2">
+                       <style>{`
+                         @media print {
+                           body * {
+                             visibility: hidden !important;
+                           }
+                           #print-area, #print-area * {
+                             visibility: visible !important;
+                           }
+                           #print-area {
+                             position: absolute !important;
+                             left: 0 !important;
+                             top: 0 !important;
+                             width: 100% !important;
+                             background: white !important;
+                             color: black !important;
+                             padding: 24px !important;
+                           }
+                         }
+                       `}</style>
+                       <div className="border-b-2 border-slate-900 pb-5 flex justify-between items-end">
+                         <div>
+                           <h1 className="text-2xl font-black uppercase tracking-tight text-slate-950">Informe de Arquitectura de Software</h1>
+                           <p className="text-xs text-slate-500 mt-1">Proyecto: <strong>{project?.name}</strong> · Fecha: {new Date().toLocaleDateString('es-ES')} · Generado por ForgeMind Intelligence</p>
+                         </div>
+                         <span className="text-xs font-mono font-bold text-indigo-700 text-right">Audit #{id?.substring(0, 8)}</span>
+                       </div>
+                       <section className="space-y-2">
+                         <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">1. Resumen Ejecutivo</h3>
+                         <p className="text-slate-700 leading-relaxed">{architectureReport.overview}</p>
+                       </section>
+                       <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                         <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Patrón</span><p className="font-bold">{architectureReport.architecturePattern || 'N/A'}</p></div>
+                         <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Mantenibilidad</span><p className="font-bold text-emerald-700">{architectureReport.maintainabilityScore}/100</p></div>
+                         <div><span className="text-[10px] uppercase font-bold text-slate-400 block">Complejidad</span><p className="font-bold text-indigo-700">{architectureReport.complexityScore}/100</p></div>
+                       </div>
+                       <section className="space-y-3">
+                         <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">2. Hallazgos Críticos ({architectureReport.issues?.length || 0})</h3>
+                         {architectureReport.issues?.map((issue: any, idx: number) => (
+                           <div key={idx} className="p-4 bg-white border border-slate-200 rounded-xl space-y-1.5">
+                             <p className="font-bold">{idx + 1}. [{issue.severity?.toUpperCase()}] {issue.title}</p>
+                             <p className="text-slate-600">{issue.description}</p>
+                             {issue.recommendation && <p className="text-indigo-800 font-medium">↳ {issue.recommendation}</p>}
+                           </div>
+                         ))}
+                       </section>
+                       <section className="space-y-2">
+                         <h3 className="text-xs font-black uppercase tracking-wider border-b border-slate-200 pb-1">3. Recomendaciones</h3>
+                         <ul className="space-y-1 pl-4 list-disc text-slate-700">
+                           {architectureReport.recommendations?.map((r: string, idx: number) => <li key={idx}>{r}</li>)}
+                         </ul>
+                       </section>
+                     </div>
+                   )}
                 </div>
               </motion.div>
             </div>
@@ -1938,7 +1995,7 @@ ${(architectureReport.recommendations || []).map((r: string) => `• ${r}`).join
                       <Mail size={18} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900">Enviar Reporte por Correo (Gmail API)</h3>
+                      <h3 className="text-sm font-bold text-slate-900">Enviar Reporte por Correo</h3>
                       <p className="text-[11px] text-slate-500">Despacha el resumen de avances a clientes o miembros del equipo</p>
                     </div>
                   </div>

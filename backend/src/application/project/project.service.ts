@@ -55,6 +55,13 @@ export class ProjectApplicationService {
     await this.projectRepository.update(project.archive());
   }
 
+  async updateArchitectureReport(id: string, report: any): Promise<Project> {
+    const project = await this.findById(id);
+    const updated = project.updateArchitectureReport(report);
+    await this.projectRepository.update(updated);
+    return updated;
+  }
+
   async delete(id: string): Promise<void> {
     await this.findById(id);
     await this.projectRepository.delete(id);

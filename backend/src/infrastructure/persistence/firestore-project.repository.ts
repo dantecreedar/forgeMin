@@ -20,6 +20,7 @@ export class FirestoreProjectRepository extends FirestoreRepository<Project> imp
       parseDate(docData.createdAt),
       parseDate(docData.updatedAt),
       docData.isArchived ?? false,
+      docData.architectureReport || null,
     );
   }
 
