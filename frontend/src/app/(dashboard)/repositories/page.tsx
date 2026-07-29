@@ -6,7 +6,7 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth-context';
 import { useProfileSettings } from '@/lib/settings-context';
 import { translations } from '@/lib/translations';
-import { GitBranch, ExternalLink, Search, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X, Building2 } from 'lucide-react';
+import { GitBranch, ExternalLink, Search, Lock, Globe, AlertCircle, FolderGit2, Link as LinkIcon, Check, X, Building2, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 
 interface GitHubRepo {
@@ -44,6 +44,7 @@ export default function RepositoriesPage() {
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [connectSuccess, setConnectSuccess] = useState<string | null>(null);
 
@@ -111,6 +112,7 @@ export default function RepositoriesPage() {
   const openConnectModal = async (repo: GitHubRepo) => {
     setSelectedRepo(repo);
     setConnectSuccess(null);
+    setIsDropdownOpen(false);
     if (!user) return;
     try {
       const wsRes = await api.workspaces.list(user.id);
@@ -118,14 +120,28 @@ export default function RepositoriesPage() {
       const allProjectsList: any[] = [];
       for (const ws of wss) {
         const projRes = await api.projects.list(ws.id);
-        const projs = (projRes.projects || []).map((p: any) => ({
-          ...p,
-          workspaceName: ws.name || 'Sin nombre',
-        }));
-        allProjectsList.push(...projs);
+        const projs = projRes.projects || [];
+        for (const p of projs) {
+          const repoRes = await api.repositories.listByProject(p.id);
+          const connected = repoRes.repositories || [];
+          const isOccupied = connected.length > 0;
+          const connectedRepoName = isOccupied
+            ? (connected[0].fullName || `${connected[0].owner}/${connected[0].name}`)
+            : null;
+
+          allProjectsList.push({
+            ...p,
+            workspaceName: ws.name || 'Sin nombre',
+            isOccupied,
+            connectedRepoName,
+          });
+        }
       }
       setProjects(allProjectsList);
-      if (allProjectsList.length > 0) {
+      const firstAvailable = allProjectsList.find((p) => !p.isOccupied);
+      if (firstAvailable) {
+        setSelectedProjectId(firstAvailable.id);
+      } else if (allProjectsList.length > 0) {
         setSelectedProjectId(allProjectsList[0].id);
       }
     } catch {}
@@ -450,20 +466,113 @@ export default function RepositoriesPage() {
                 </div>
               ) : (
                 <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">{t.projectLabel}</label>
+                  <div className="relative">
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">{t.projectLabel}</label>
                     {projects.length > 0 ? (
-                      <select
-                        value={selectedProjectId}
-                        onChange={(e) => setSelectedProjectId(e.target.value)}
-                        className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        {projects.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.name} {p.workspaceName ? `(Workspace: ${p.workspaceName})` : ''}
-                          </option>
-                        ))}
-                      </select>
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                          className="w-full text-left p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-slate-100/60 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all flex items-center justify-between gap-3 shadow-2xs"
+                        >
+                          {(() => {
+                            const selectedObj = projects.find((p) => p.id === selectedProjectId);
+                            if (!selectedObj) return <span className="text-sm text-slate-400 font-medium">Seleccionar proyecto...</span>;
+
+                            return (
+                              <div className="space-y-0.5 min-w-0 flex-1">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-semibold text-slate-900 truncate">
+                                    {selectedObj.name}
+                                  </span>
+                                  <span className="text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+                                    <Building2 size={10} className="text-blue-500" />
+                                    {selectedObj.workspaceName}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 font-medium">
+                                  {selectedObj.isOccupied ? `🔒 Ocupado por ${selectedObj.connectedRepoName}` : 'Disponible (gestión 1:1)'}
+                                </p>
+                              </div>
+                            );
+                          })()}
+
+                          <ChevronDown size={18} className={`text-slate-400 transition-transform duration-200 ${isDropdownOpen ? 'rotate-180 text-blue-600' : ''}`} />
+                        </button>
+
+                        <AnimatePresence>
+                          {isDropdownOpen && (
+                            <motion.div
+                              initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                              animate={{ opacity: 1, y: 4, scale: 1 }}
+                              exit={{ opacity: 0, y: -6, scale: 0.98 }}
+                              transition={{ duration: 0.15 }}
+                              className="absolute left-0 right-0 z-50 bg-white border border-slate-200 rounded-2xl shadow-xl p-2 space-y-1 max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200"
+                            >
+                              {projects.map((p) => {
+                                const isSelected = p.id === selectedProjectId;
+                                const isOccupied = p.isOccupied;
+
+                                return (
+                                  <button
+                                    key={p.id}
+                                    type="button"
+                                    disabled={isOccupied}
+                                    onClick={() => {
+                                      setSelectedProjectId(p.id);
+                                      setIsDropdownOpen(false);
+                                    }}
+                                    className={`w-full text-left p-3 rounded-xl border transition-all flex items-center justify-between gap-3 ${
+                                      isOccupied
+                                        ? 'bg-slate-50/70 border-slate-100 opacity-60 cursor-not-allowed'
+                                        : isSelected
+                                        ? 'bg-blue-50/80 border-blue-300 font-medium'
+                                        : 'bg-white border-transparent hover:bg-slate-100/70 hover:border-slate-200'
+                                    }`}
+                                  >
+                                    <div className="space-y-0.5 min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`text-xs font-semibold truncate ${isSelected ? 'text-blue-900' : 'text-slate-800'}`}>
+                                          {p.name}
+                                        </span>
+                                        <span className="text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200 px-1.5 py-0.5 rounded-full flex items-center gap-1">
+                                          <Building2 size={9} className="text-slate-400" />
+                                          {p.workspaceName}
+                                        </span>
+                                      </div>
+
+                                      {isOccupied ? (
+                                        <p className="text-[10px] text-amber-700 flex items-center gap-1 font-medium truncate">
+                                          <Lock size={10} className="text-amber-600 shrink-0" />
+                                          Ocupado por <span className="font-mono text-slate-700 truncate">{p.connectedRepoName}</span>
+                                        </p>
+                                      ) : (
+                                        <p className="text-[10px] text-emerald-700 font-medium flex items-center gap-1">
+                                          <Check size={10} className="text-emerald-600" /> Disponible
+                                        </p>
+                                      )}
+                                    </div>
+
+                                    <div className="shrink-0 flex items-center">
+                                      {isOccupied ? (
+                                        <span className="text-[9px] font-semibold text-amber-800 bg-amber-100/80 border border-amber-200 px-2 py-0.5 rounded-lg flex items-center gap-1">
+                                          <Lock size={9} /> Ocupado
+                                        </span>
+                                      ) : isSelected ? (
+                                        <span className="w-4 h-4 rounded-full bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                                          <Check size={10} />
+                                        </span>
+                                      ) : (
+                                        <span className="w-4 h-4 rounded-full border border-slate-300 bg-white" />
+                                      )}
+                                    </div>
+                                  </button>
+                                );
+                              })}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </>
                     ) : (
                       <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
                         {t.noProjects}
@@ -474,8 +583,8 @@ export default function RepositoriesPage() {
                   <div className="pt-2 flex gap-3">
                     <button
                       onClick={handleConnectRepo}
-                      disabled={connecting || !selectedProjectId}
-                      className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs disabled:opacity-50"
+                      disabled={connecting || !selectedProjectId || Boolean(projects.find((p) => p.id === selectedProjectId)?.isOccupied)}
+                      className="flex-1 bg-primary text-white py-2.5 rounded-xl text-sm font-medium hover:bg-primary/90 transition-colors shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {connecting ? t.linking : t.linkBtn}
                     </button>
