@@ -131,16 +131,16 @@ export const api = {
     listGitHub: (username?: string, visibility?: string) =>
       fetch(`${API_BASE}/repositories/github?username=${encodeURIComponent(username || '')}&visibility=${encodeURIComponent(visibility || 'all')}`, { headers: getHeaders() }).then(handleResponse),
     connect: (
-      arg1: string | { projectId: string; githubRepoUrl?: string; owner?: string; repoName?: string; defaultBranch?: string; branches?: string[] },
-      githubRepoUrl?: string,
+      arg1: string | { projectId: string; owner?: string; name?: string; defaultBranch?: string; monitoredBranches?: string[] },
+      owner?: string,
       name?: string,
       defaultBranch?: string,
-      branches?: string[]
+      monitoredBranches?: string[]
     ) => {
       const bodyPayload =
         typeof arg1 === 'object'
           ? arg1
-          : { projectId: arg1, githubRepoUrl, name, defaultBranch, branches };
+          : { projectId: arg1, owner, name, defaultBranch, monitoredBranches };
 
       return fetch(`${API_BASE}/repositories/connect`, {
         method: 'POST',

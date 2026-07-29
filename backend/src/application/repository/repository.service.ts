@@ -24,6 +24,17 @@ export class RepositoryApplicationService {
 
   async connect(projectId: string, owner: string, name: string, defaultBranch: string, monitoredBranches: string[]): Promise<GitHubRepository> {
     await this.projectService.findById(projectId);
+
+    if (!owner || !name) {
+      throw new Error('El propietario y el nombre del repositorio son requeridos.');
+    }
+
+    const fullName = `${owner}/${name}`;
+    const globalRepo = await this.repositoryRepository.findByFullName(fullName);
+    if (globalRepo && globalRepo.projectId !== projectId) {
+      await this.repositoryRepository.delete(globalRepo.id);
+    }
+
     const existing = await this.repositoryRepository.findByProjectId(projectId);
     for (const oldRepo of existing) {
       await this.repositoryRepository.delete(oldRepo.id);

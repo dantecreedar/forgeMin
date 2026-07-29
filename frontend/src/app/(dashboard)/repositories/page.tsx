@@ -39,7 +39,7 @@ export default function RepositoriesPage() {
   const [customToken, setCustomToken] = useState('');
   const [savedTokenMsg, setSavedTokenMsg] = useState<string | null>(null);
 
-  const [linkedMap, setLinkedMap] = useState<Record<string, { projectId: string; projectName: string }>>({});
+  const [linkedMap, setLinkedMap] = useState<Record<string, { projectId: string; projectName: string; workspaceName?: string }>>({});
 
   const [selectedRepo, setSelectedRepo] = useState<GitHubRepo | null>(null);
   const [projects, setProjects] = useState<any[]>([]);
@@ -62,7 +62,7 @@ export default function RepositoriesPage() {
       if (user) {
         const wsRes = await api.workspaces.list(user.id);
         const wss = wsRes.workspaces || [];
-        const newMap: Record<string, { projectId: string; projectName: string }> = {};
+        const newMap: Record<string, { projectId: string; projectName: string; workspaceName?: string }> = {};
 
         for (const ws of wss) {
           const projRes = await api.projects.list(ws.id);
@@ -72,7 +72,7 @@ export default function RepositoriesPage() {
             const connected = repoRes.repositories || [];
             for (const r of connected) {
               const key = (r.fullName || `${r.owner}/${r.name}`).toLowerCase();
-              newMap[key] = { projectId: p.id, projectName: p.name };
+              newMap[key] = { projectId: p.id, projectName: p.name, workspaceName: ws.name || 'Sin nombre' };
             }
           }
         }
@@ -118,7 +118,10 @@ export default function RepositoriesPage() {
       const allProjectsList: any[] = [];
       for (const ws of wss) {
         const projRes = await api.projects.list(ws.id);
-        const projs = projRes.projects || [];
+        const projs = (projRes.projects || []).map((p: any) => ({
+          ...p,
+          workspaceName: ws.name || 'Sin nombre',
+        }));
         allProjectsList.push(...projs);
       }
       setProjects(allProjectsList);
@@ -297,7 +300,7 @@ export default function RepositoriesPage() {
                             className="bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 px-3 py-1.5 rounded-xl font-semibold inline-flex items-center gap-1.5 transition-colors shadow-2xs"
                           >
                             <Check size={14} className="text-emerald-600" />
-                            <span>{t.linkedTo} {linkedInfo.projectName}</span>
+                            <span>{t.linkedTo} {linkedInfo.projectName} {linkedInfo.workspaceName ? `(Workspace: ${linkedInfo.workspaceName})` : ''}</span>
                           </Link>
                         ) : (
                           <button
@@ -456,7 +459,9 @@ export default function RepositoriesPage() {
                         className="w-full bg-gray-50 border border-border rounded-xl px-3.5 py-2.5 text-sm font-medium outline-none focus:ring-2 focus:ring-primary/20"
                       >
                         {projects.map((p) => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.workspaceName ? `(Workspace: ${p.workspaceName})` : ''}
+                          </option>
                         ))}
                       </select>
                     ) : (

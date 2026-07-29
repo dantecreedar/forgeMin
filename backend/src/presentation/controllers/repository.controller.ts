@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Body, Param, Query, Headers, Delete } from '@nestjs/common';
+import { Controller, Post, Get, Body, Param, Query, Headers, Delete, BadRequestException } from '@nestjs/common';
 import { RepositoryApplicationService } from '../../application/repository/repository.service';
 
 @Controller('repositories')
@@ -15,20 +15,30 @@ export class RepositoryController {
     return { repositories: repos };
   }
 
-
-
-
   @Post('connect')
   async connect(
-
     @Body('projectId') projectId: string,
     @Body('owner') owner: string,
     @Body('name') name: string,
     @Body('defaultBranch') defaultBranch: string,
-    @Body('monitoredBranches') monitoredBranches: string[],
+    @Body('monitoredBranches') monitoredBranches?: string[],
   ) {
-    const repo = await this.repositoryService.connect(projectId, owner, name, defaultBranch, monitoredBranches);
-    return { repository: repo };
+    try {
+      if (!projectId) throw new BadRequestException('El ID del proyecto es requerido.');
+      const repoOwner = owner || (name?.includes('/') ? name.split('/')[0] : '');
+      const repoName = name?.includes('/') ? name.split('/')[1] : name;
+
+      const repo = await this.repositoryService.connect(
+        projectId,
+        repoOwner,
+        repoName,
+        defaultBranch || 'main',
+        monitoredBranches || [defaultBranch || 'main']
+      );
+      return { repository: repo };
+    } catch (err: any) {
+      throw new BadRequestException(err.message || 'Error al vincular el repositorio');
+    }
   }
 
   @Get(':id')

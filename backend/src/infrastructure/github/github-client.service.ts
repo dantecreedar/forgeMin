@@ -46,7 +46,7 @@ export class GitHubClientService implements IGitHubClient {
       id: repo.id,
       name: repo.name,
       fullName: repo.full_name,
-      owner: repo.owner.login,
+      owner: typeof repo.owner === 'string' ? repo.owner : (repo.owner?.login || repo.full_name?.split('/')[0] || ''),
       defaultBranch: repo.default_branch || 'main',
       isPrivate: repo.private,
       htmlUrl: repo.html_url,

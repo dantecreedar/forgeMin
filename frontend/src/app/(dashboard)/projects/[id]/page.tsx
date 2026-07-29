@@ -10,7 +10,7 @@ import {
   Sparkles, FolderGit2, RefreshCw, Link as LinkIcon, Table, LayoutGrid, Download, 
   FileText, Paperclip, Upload, File, HardDrive, BookOpen, ExternalLink, Mail, Send,
   Code2, ShieldAlert, Cpu, Check, Layers, ChevronDown, ChevronUp,
-  Bookmark, FileCode, Printer, Maximize2, CheckCircle2
+  Bookmark, FileCode, Printer, Maximize2, CheckCircle2, Building2
 } from 'lucide-react';
 
 import Link from 'next/link';
@@ -177,8 +177,8 @@ ${cleanRecommendations || 'Sin recomendaciones registradas.'}`;
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [statusSummary, setStatusSummary] = useState<any>(null);
 
-  // Gmail OAuth & Email Sending state
   const [gmailConnected, setGmailConnected] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState<string | null>(null);
   const [gmailEmail, setGmailEmail] = useState<string | null>(null);
   const [gmailToken, setGmailToken] = useState<string | null>(null);
 
@@ -289,6 +289,13 @@ ${cleanRecommendations || 'Sin recomendaciones registradas.'}`;
         api.documents.listByProject(id),
       ]);
       setProject(projRes.project);
+      if (projRes.project?.workspaceId) {
+        api.workspaces.get(projRes.project.workspaceId).then((wsRes) => {
+          if (wsRes.workspace?.name) {
+            setWorkspaceName(wsRes.workspace.name);
+          }
+        }).catch(() => {});
+      }
       setObjectives(objRes.objectives || []);
       setConnectedRepos(repoRes.repositories || []);
       setDocuments(docRes.documents || []);
@@ -574,7 +581,15 @@ ${cleanRecommendations || 'Sin recomendaciones registradas.'}`;
             <div>
               <div className="flex items-start justify-between">
                 <div className="flex-1">
-                  <h1 className="text-xl font-semibold text-foreground">{project.name}</h1>
+                  <div className="flex items-center gap-2.5 flex-wrap">
+                    <h1 className="text-xl font-semibold text-foreground">{project.name}</h1>
+                    {workspaceName && (
+                      <span className="text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Building2 size={12} className="text-slate-500" />
+                        Workspace: {workspaceName}
+                      </span>
+                    )}
+                  </div>
                   {project.description && (
                     <p className="text-sm text-muted-foreground mt-1">{project.description}</p>
                   )}
