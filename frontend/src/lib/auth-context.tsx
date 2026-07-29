@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { auth } from '@/lib/firebase';
-import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { GoogleAuthProvider, GithubAuthProvider, signInWithPopup, signOut, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 import { api } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { DeerIcon } from '@/components/ui/deer-icon';
@@ -22,6 +22,8 @@ interface AuthContextType {
   loading: boolean;
   loginWithGoogle: () => Promise<void>;
   loginWithGithub: () => Promise<void>;
+  loginWithEmail: (e: string, p: string) => Promise<void>;
+  registerWithEmail: (e: string, p: string) => Promise<void>;
   switchAuthMode: (target: 'google' | 'github' | AppMode) => Promise<void>;
   setAppMode: (mode: AppMode) => void;
   logout: () => Promise<void>;
@@ -39,6 +41,8 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   loginWithGoogle: async () => {},
   loginWithGithub: async () => {},
+  loginWithEmail: async () => {},
+  registerWithEmail: async () => {},
   switchAuthMode: async () => {},
   setAppMode: () => {},
   logout: async () => {},
@@ -131,41 +135,69 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithGoogle = async () => {
-    const provider = new GoogleAuthProvider();
-    // All-in-one unified scopes
-    provider.addScope('https://www.googleapis.com/auth/drive.readonly');
-    provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
-    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
-    provider.addScope('https://www.googleapis.com/auth/gmail.send');
+    try {
+      const provider = new GoogleAuthProvider();
+      provider.addScope('https://www.googleapis.com/auth/drive.readonly');
+      provider.addScope('https://www.googleapis.com/auth/contacts.readonly');
+      provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+      provider.addScope('https://www.googleapis.com/auth/gmail.send');
 
-    localStorage.setItem('auth_provider', 'google');
-    setAuthProvider('google');
+      localStorage.setItem('auth_provider', 'google');
+      setAuthProvider('google');
 
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (credential?.accessToken) {
-      localStorage.setItem('google_token', credential.accessToken);
-      localStorage.setItem('gmail_access_token', credential.accessToken);
+      const result = await signInWithPopup(auth, provider);
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        localStorage.setItem('google_token', credential.accessToken);
+        localStorage.setItem('gmail_access_token', credential.accessToken);
+      }
+      if (result.user.email) {
+        localStorage.setItem('gmail_email', result.user.email);
+      }
+
+      await runOnboardingSequence('google');
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+        console.error('Google Login error:', err);
+      }
     }
-    if (result.user.email) {
-      localStorage.setItem('gmail_email', result.user.email);
-    }
-
-    await runOnboardingSequence('google');
   };
 
   const loginWithGithub = async () => {
-    const provider = new GithubAuthProvider();
-    provider.addScope('repo');
-    localStorage.setItem('auth_provider', 'github');
-    setAuthProvider('github');
-    const result = await signInWithPopup(auth, provider);
-    const credential = GithubAuthProvider.credentialFromResult(result);
-    if (credential?.accessToken) {
-      localStorage.setItem('github_token', credential.accessToken);
+    try {
+      const provider = new GithubAuthProvider();
+      provider.addScope('repo');
+      localStorage.setItem('auth_provider', 'github');
+      setAuthProvider('github');
+      const result = await signInWithPopup(auth, provider);
+      const credential = GithubAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        localStorage.setItem('github_token', credential.accessToken);
+      }
+      await runOnboardingSequence('github');
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user' && err?.code !== 'auth/cancelled-popup-request') {
+        console.error('GitHub Login error:', err);
+      }
     }
+  };
 
-    await runOnboardingSequence('github');
+  const loginWithEmail = async (email: string, pass: string) => {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    localStorage.setItem('auth_provider', 'email');
+    setAuthProvider('email' as any);
+    if (result.user.email) {
+      localStorage.setItem('gmail_email', result.user.email);
+    }
+  };
+
+  const registerWithEmail = async (email: string, pass: string) => {
+    const result = await createUserWithEmailAndPassword(auth, email, pass);
+    localStorage.setItem('auth_provider', 'email');
+    setAuthProvider('email' as any);
+    if (result.user.email) {
+      localStorage.setItem('gmail_email', result.user.email);
+    }
   };
 
   const logout = async () => {
@@ -204,6 +236,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAppModeState(mode);
     if (typeof window !== 'undefined') {
       localStorage.setItem('forgemind_app_mode', mode);
+      if (mode === 'founder') {
+        const isLinkedinConnected = localStorage.getItem('linkedin_connected') === 'true';
+        if (!isLinkedinConnected) {
+          if (window.location.pathname !== '/onboarding') {
+            window.location.href = '/onboarding?step=4&role=founder';
+          }
+        } else {
+          if (!window.location.pathname.startsWith('/dashboard/leads')) {
+            window.location.href = '/dashboard/leads';
+          }
+        }
+      }
     }
   };
 
@@ -218,6 +262,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loading,
       loginWithGoogle,
       loginWithGithub,
+      loginWithEmail,
+      registerWithEmail,
       switchAuthMode,
       setAppMode,
       logout,
