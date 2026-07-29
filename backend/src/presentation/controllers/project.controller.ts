@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Body, Param, Delete, Headers } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Body, Param, Delete, Headers, Query } from '@nestjs/common';
 import { ProjectApplicationService } from '../../application/project/project.service';
 import { SyncEngineService } from '../../application/analysis/sync-engine.service';
 import { AIEngineService } from '../../application/analysis/ai-engine.service';
@@ -51,13 +51,14 @@ export class ProjectController {
   @Post(':id/analyze-architecture')
   async analyzeArchitecture(
     @Param('id') id: string,
+    @Query('repositoryId') repositoryId?: string,
     @Headers('x-github-token') userGithubToken?: string,
   ) {
     const repos = await this.repositoryService.findByProjectId(id);
     if (repos.length === 0) {
       return { success: false, message: 'No hay repositorio de GitHub vinculado a este proyecto.' };
     }
-    const repo = repos[0];
+    const repo = repositoryId ? (repos.find(r => r.id === repositoryId) || repos[0]) : repos[0];
     const report = await this.codebaseAnalyzerService.analyzeCodebase(
       repo.owner,
       repo.name,
@@ -65,17 +66,20 @@ export class ProjectController {
       userGithubToken,
     );
     // Persist the generated architecture report in database
-    await this.projectService.updateArchitectureReport(id, report);
+    await this.projectService.updateArchitectureReport(id, report, repo.id);
     return { success: true, report, repoName: repo.fullName };
   }
 
   @Get(':id/readme')
-  async getReadmeSummary(@Param('id') id: string) {
+  async getReadmeSummary(
+    @Param('id') id: string,
+    @Query('repositoryId') repositoryId?: string
+  ) {
     const repos = await this.repositoryService.findByProjectId(id);
     if (repos.length === 0) {
       return { summary: 'Sin repositorio de GitHub vinculado. Vincula un repositorio para analizar su estructura.' };
     }
-    const repo = repos[0];
+    const repo = repositoryId ? (repos.find(r => r.id === repositoryId) || repos[0]) : repos[0];
     const readmeContent = await this.githubClient.getReadme(repo.owner, repo.name);
     
     if (readmeContent) {
@@ -135,9 +139,27 @@ Indica brevemente el propósito de la app.`;
 
 
   @Get(':id/git-activity')
-  async getGitActivity(@Param('id') id: string) {
+  async getGitActivity(
+    @Param('id') id: string,
+    @Query('repositoryId') repositoryId?: string
+  ) {
     const repos = await this.repositoryService.findByProjectId(id);
-    const repo = repos.length > 0 ? repos[0] : null;
+    if (repos.length === 0) {
+      return {
+        repoName: 'Ninguno',
+        defaultBranch: 'main',
+        commits: [],
+        pullRequests: [],
+        branches: [],
+        hasMultipleBranches: false,
+        localStatus: { hasUncommittedChanges: false, modifiedFiles: [], currentBranch: 'main' },
+        isLocalMode: false,
+        explanation: 'No hay ningún repositorio vinculado a este proyecto.',
+        updatedAt: new Date(),
+      };
+    }
+
+    const repo = repositoryId ? (repos.find(r => r.id === repositoryId) || repos[0]) : repos[0];
 
     const [remoteCommits, prs, remoteBranches, localCommits, localStatus, localBranches] = await Promise.all([
       repo ? this.githubClient.getCommits(repo.owner, repo.name, repo.defaultBranch).catch(() => []) : Promise.resolve([]),
@@ -189,7 +211,8 @@ Indica brevemente el propósito de la app.`;
     const modifiedCount = localStatus.modifiedFiles?.length || 0;
 
     // Return cached result instantly if commit SHA and working status haven't changed!
-    const cached = this.gitActivityCache.get(id);
+    const cacheKey = repositoryId ? `${id}_${repositoryId}` : id;
+    const cached = this.gitActivityCache.get(cacheKey);
     if (
       cached &&
       cached.latestSha === latestSha &&
@@ -236,7 +259,7 @@ ${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.
     };
 
     // Save payload to cache for future requests
-    this.gitActivityCache.set(id, {
+    this.gitActivityCache.set(cacheKey, {
       latestSha,
       hasUncommittedChanges: hasUncommitted,
       modifiedFilesCount: modifiedCount,
@@ -289,8 +312,8 @@ ${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.
       {
         id: 'development',
         name: 'Fase 2: Desarrollo Activo',
-        status: inProgress > 0 || completed > 0 || localStatus.hasUncommittedChanges ? 'in_progress' : 'pending',
-        label: inProgress > 0 || completed > 0 || localStatus.hasUncommittedChanges ? 'En Curso' : 'Pendiente',
+        status: inProgress > 0 || completed > 0 || (repos.length > 0 && localStatus.hasUncommittedChanges) ? 'in_progress' : 'pending',
+        label: inProgress > 0 || completed > 0 || (repos.length > 0 && localStatus.hasUncommittedChanges) ? 'En Curso' : 'Pendiente',
       },
       {
         id: 'qa',
@@ -316,7 +339,7 @@ ${localStatus.hasUncommittedChanges ? `Trabajo en progreso local: ${localStatus.
       stats: { total, completed, inProgress, blocked, pending },
       phases,
       connectedReposCount: repos.length,
-      hasUncommittedChanges: localStatus.hasUncommittedChanges,
+      hasUncommittedChanges: repos.length > 0 ? localStatus.hasUncommittedChanges : false,
       updatedAt: new Date(),
     };
   }

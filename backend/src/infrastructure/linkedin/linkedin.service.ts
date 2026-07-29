@@ -179,38 +179,70 @@ export class LinkedInService {
   }
 
   /**
-   * Resultados simulados realistas para cuando la API no está disponible (plan no habilitado).
+   * Resultados simulados realistas para cuando la API no está disponible (plan no habilitado)
    */
   private getSimulatedResults(industry: string, role: string, page: number, count: number): PeopleSearchResult {
-    const totalPool = [
-      { name: 'Martín Rodríguez', headline: `${role} en ${industry}`, company: `${industry} Corp`, location: 'Buenos Aires, Argentina' },
-      { name: 'Laura García Méndez', headline: `${role} | ${industry} Specialist`, company: `${industry} Solutions`, location: 'Ciudad de México, México' },
-      { name: 'Diego Fernández', headline: `Head of ${role} @ ${industry} Startup`, company: `Grow${industry.replace(/\s+/g, '')}`, location: 'Madrid, España' },
-      { name: 'Sofía Ramírez', headline: `${role} & Co-Founder`, company: `${industry} Labs`, location: 'Bogotá, Colombia' },
-      { name: 'Andrés Castillo', headline: `${role} | Building the future of ${industry}`, company: `${industry} Ventures`, location: 'Santiago, Chile' },
-      { name: 'Valentina Torres', headline: `Senior ${role} | ${industry}`, company: `${industry} Hub`, location: 'Lima, Perú' },
-      { name: 'Carlos Ibáñez', headline: `${role} at Scale in ${industry}`, company: `${industry} Group`, location: 'Montevideo, Uruguay' },
-      { name: 'María José Pedraza', headline: `${role} driving ${industry} innovation`, company: `${industry} Inc`, location: 'São Paulo, Brasil' },
-      { name: 'Felipe Morales', headline: `${role} | ${industry} Growth`, company: `Scale${industry.replace(/\s+/g, '')}`, location: 'Medellín, Colombia' },
-      { name: 'Camila Vidal', headline: `${role} | ${industry} Tech Lead`, company: `${industry} Digital`, location: 'Guadalajara, México' },
-    ];
+    const isNameSearch = role && role.trim().split(/\s+/).length >= 2;
+    const targetName = isNameSearch ? role.trim() : null;
+    const cleanRole = isNameSearch ? 'Profesional' : role;
+    const cleanIndustry = industry || 'Tecnología';
 
-    const start = page * count;
-    const slice = totalPool.slice(start, start + count);
+    const firstNames = ['Martín', 'Laura', 'Diego', 'Sofía', 'Andrés', 'Valentina', 'Carlos', 'María José', 'Felipe', 'Camila', 'Alejandro', 'Gabriela', 'Javier', 'Mariana', 'Sebastián', 'Lucía', 'Nicolás', 'Daniela', 'Esteban', 'Paula'];
+    const lastNames = ['Rodríguez', 'García', 'Fernández', 'Ramírez', 'Castillo', 'Torres', 'Ibáñez', 'Pedraza', 'Morales', 'Vidal', 'Herrera', 'Gómez', 'López', 'Sánchez', 'Pérez', 'Silva', 'Castro', 'Ortega', 'Díaz', 'Rojas'];
+    const locations = ['Buenos Aires, Argentina', 'Ciudad de México, México', 'Madrid, España', 'Bogotá, Colombia', 'Santiago, Chile', 'Lima, Perú', 'Montevideo, Uruguay', 'São Paulo, Brasil', 'Medellín, Colombia', 'Guadalajara, México'];
+
+    const people: LinkedInPerson[] = [];
+    const startIdx = page * count;
+
+    for (let i = 0; i < count; i++) {
+      const idx = startIdx + i;
+      let name = '';
+      let headline = '';
+      const company = `${cleanIndustry} ${idx % 2 === 0 ? 'Corp' : 'Solutions'}`;
+      const location = locations[idx % locations.length];
+
+      if (idx === 0 && targetName) {
+        name = targetName;
+        headline = `Especialista en ${cleanIndustry}`;
+      } else {
+        const fn = firstNames[(idx * 3) % firstNames.length];
+        const ln = lastNames[(idx * 7) % lastNames.length];
+        name = `${fn} ${ln}`;
+
+        if (targetName) {
+          const nameParts = targetName.split(/\s+/);
+          const baseName = nameParts[0];
+          if (idx % 3 === 0) {
+            name = `${baseName} ${lastNames[(idx * 5) % lastNames.length]}`;
+          } else if (idx % 3 === 1 && nameParts.length > 1) {
+            name = `${firstNames[(idx * 4) % firstNames.length]} ${nameParts[nameParts.length - 1]}`;
+          }
+        }
+
+        headline = targetName 
+          ? `${cleanRole} con experiencia similar a ${targetName}`
+          : `${cleanRole} | ${cleanIndustry} Specialist`;
+      }
+
+      people.push({
+        id: `sim_${page}_${i}_${idx}`,
+        name,
+        headline,
+        profilePictureUrl: undefined,
+        profileUrl: `https://www.linkedin.com/in/${name.toLowerCase().replace(/\s+/g, '-')}`,
+        company,
+        location,
+      });
+    }
+
+    const maxPages = 5;
+    const hasMore = page < maxPages - 1;
 
     return {
-      people: slice.map((p, i) => ({
-        id: `sim_${page}_${i}`,
-        name: p.name,
-        headline: p.headline,
-        profilePictureUrl: undefined,
-        profileUrl: `https://www.linkedin.com/in/${p.name.toLowerCase().replace(/\s+/g, '-')}`,
-        company: p.company,
-        location: p.location,
-      })),
-      total: totalPool.length,
+      people,
+      total: maxPages * count,
       page,
-      hasMore: start + count < totalPool.length,
+      hasMore,
     };
   }
 }

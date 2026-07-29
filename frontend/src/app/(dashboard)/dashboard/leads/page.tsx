@@ -33,6 +33,7 @@ import {
 import { DotsLoader } from '@/components/ui/dots-loader';
 import { DeerIcon } from '@/components/ui/deer-icon';
 import { useProfileSettings } from '@/lib/settings-context';
+import { renderFormattedText } from '@/lib/link-renderer';
 import { translations } from '@/lib/translations';
 
 interface Lead {
@@ -101,12 +102,14 @@ function LeadsChatContent() {
   const [isLinkedInConnected, setIsLinkedInConnected] = useState(false);
   const [linkedInProfile, setLinkedInProfile] = useState<{ firstName: string; lastName: string; headline?: string; profilePictureUrl?: string; profileUrl: string } | null>(null);
   const [showLinkedInProfile, setShowLinkedInProfile] = useState(false);
+  const [isGmailConnected, setIsGmailConnected] = useState(false);
+  const [gmailEmail, setGmailEmail] = useState<string | null>(null);
 
   // Paginación de búsqueda LinkedIn
   const [linkedInSearchContext, setLinkedInSearchContext] = useState<{ industry: string; role: string; page: number; total: number } | null>(null);
   const [loadingMoreLinkedIn, setLoadingMoreLinkedIn] = useState(false);
 
-  // Verificar estado de LinkedIn al montar
+  // Verificar estado de LinkedIn y Gmail al montar
   useEffect(() => {
     const checkLinkedIn = async () => {
       try {
@@ -121,9 +124,16 @@ function LeadsChatContent() {
       } catch {}
     };
     checkLinkedIn();
+
+    const gToken = localStorage.getItem('gmail_access_token') || localStorage.getItem('google_token');
+    const gEmail = localStorage.getItem('gmail_email') || localStorage.getItem('user_email');
+    if (gToken) {
+      setIsGmailConnected(true);
+      setGmailEmail(gEmail || 'Gmail Conectado');
+    }
   }, []);
 
-  // Manejar el regreso del callback OAuth de LinkedIn
+  // Manejar el regreso del callback OAuth de LinkedIn y Gmail
   useEffect(() => {
     if (searchParams.get('linkedin_connected') === 'true') {
       setIsLinkedInConnected(true);
@@ -132,6 +142,17 @@ function LeadsChatContent() {
         .then(r => r.json())
         .then(data => { if (data.profile) setLinkedInProfile(data.profile); })
         .catch(() => {});
+    }
+
+    if (searchParams.get('gmail_status') === 'success') {
+      const gToken = searchParams.get('access_token');
+      const gEmail = searchParams.get('email');
+      if (gToken) {
+        localStorage.setItem('gmail_access_token', gToken);
+        if (gEmail) localStorage.setItem('gmail_email', gEmail);
+        setIsGmailConnected(true);
+        setGmailEmail(gEmail || 'Gmail Conectado');
+      }
     }
   }, [searchParams]);
 
@@ -163,9 +184,11 @@ function LeadsChatContent() {
   const [sendingOutreach, setSendingOutreach] = useState(false);
 
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const quickPrompts = [
     { label: '🎯 Buscar en Stripe.com', query: 'Busca prospectos para la empresa en el dominio stripe.com en Apollo' },
+    { label: '🔍 Buscar a...', query: 'buscar a ', isFillOnly: true },
     { label: '💼 Registrar Lead Tech', query: 'Agrega al prospecto Carlos Gómez (carlos@techcorp.com, CTO en TechCorp)' },
     { label: '✉️ Redactar Outreach', query: 'Redacta una propuesta de correo de outreach por Gmail para TechCorp' },
     { label: '📊 Sinergia con Repositorio', query: 'Analiza la sinergia entre mi código de GitHub y los prospectos guardados' },
@@ -267,6 +290,25 @@ function LeadsChatContent() {
     try {
       const res = await fetch(`http://localhost:3001/api/v1/linkedin/search?industry=${encodeURIComponent(linkedInSearchContext.industry)}&role=${encodeURIComponent(linkedInSearchContext.role)}&page=${nextPage}`);
       const data = await res.json();
+
+      // Desactivar el botón anterior
+      setMessages(prev => {
+        const copy = [...prev];
+        for (let i = copy.length - 1; i >= 0; i--) {
+          if (copy[i].payload?.type === 'linkedin_results' && copy[i].payload?.hasMore) {
+            copy[i] = {
+              ...copy[i],
+              payload: {
+                ...copy[i].payload,
+                hasMore: false
+              }
+            };
+            break;
+          }
+        }
+        return copy;
+      });
+
       if (data.people?.length > 0) {
         setLinkedInSearchContext(prev => prev ? { ...prev, page: nextPage } : null);
         const moreMsg: ChatMessageItem = {
@@ -277,16 +319,31 @@ function LeadsChatContent() {
             type: 'linkedin_results',
             linkedInPeople: data.people,
             hasMore: data.hasMore,
-            searchContext: linkedInSearchContext,
+            searchContext: { industry: linkedInSearchContext.industry, role: linkedInSearchContext.role },
           },
         };
         setMessages(prev => [...prev, moreMsg]);
+      } else {
+        const noMoreMsg: ChatMessageItem = {
+          id: 'assistant-nomore-' + Date.now(),
+          role: 'assistant',
+          content: 'No hay más resultados disponibles en LinkedIn para esta búsqueda.',
+        };
+        setMessages(prev => [...prev, noMoreMsg]);
       }
     } catch (err) {
       console.error('Error cargando más resultados:', err);
     } finally {
       setLoadingMoreLinkedIn(false);
     }
+  };
+
+  const handleInputChange = (val: string) => {
+    if (input.startsWith('buscar a ') && !val.startsWith('buscar a ')) {
+      setInput('buscar a ');
+      return;
+    }
+    setInput(val);
   };
 
   const handleSendQuery = async (queryText?: string) => {
@@ -325,6 +382,15 @@ function LeadsChatContent() {
         if (data.lead) {
           setSelectedLead(data.lead);
           fetchLeads();
+        }
+
+        if (data.type === 'linkedin_results' && data.searchContext) {
+          setLinkedInSearchContext({
+            industry: data.searchContext.industry || '',
+            role: data.searchContext.role || '',
+            page: 0,
+            total: data.linkedInPeople?.length || 0,
+          });
         }
 
         setMessages((prev) => [...prev, assistantMsg]);
@@ -381,6 +447,7 @@ function LeadsChatContent() {
 
   return (
     <div className="flex flex-col h-full bg-[#f8fafd] select-none relative overflow-hidden">
+
       {/* Header: botones flotantes superiores */}
       <div className="absolute top-4 right-6 z-10 flex items-center gap-2">
         {/* Indicador de LinkedIn */}
@@ -448,6 +515,51 @@ function LeadsChatContent() {
           )}
         </div>
 
+        {/* Indicador de Gmail */}
+        <div className="relative">
+          <button
+            onClick={async () => {
+              if (isGmailConnected) {
+                if (confirm('¿Deseas desvincular tu cuenta de Gmail?')) {
+                  localStorage.removeItem('gmail_access_token');
+                  localStorage.removeItem('gmail_email');
+                  setIsGmailConnected(false);
+                  setGmailEmail(null);
+                }
+              } else {
+                try {
+                  const res = await fetch('http://localhost:3001/api/v1/gmail/auth-url');
+                  const data = await res.json();
+                  if (data.url) window.location.href = data.url;
+                } catch {}
+              }
+            }}
+            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border text-xs font-semibold shadow-2xs transition-all ${
+              isGmailConnected
+                ? 'bg-[#EA4335] border-[#EA4335] text-white hover:bg-[#c53727]'
+                : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+            }`}
+          >
+            {isGmailConnected ? (
+              <>
+                <div className="w-4 h-4 rounded-full bg-white/30 flex items-center justify-center text-[8px] font-bold shrink-0">
+                  {gmailEmail?.[0]?.toUpperCase() || 'G'}
+                </div>
+                <span className="truncate max-w-[120px]">{gmailEmail || 'Gmail Conectado'}</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-green-300 animate-pulse" />
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M20 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 4l-8 5-8-5V6l8 5 8-5v2z"/>
+                </svg>
+                <span>Conectar Gmail</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Botón prospectos guardados */}
         <button
           onClick={() => setShowDrawer(true)}
@@ -495,10 +607,11 @@ function LeadsChatContent() {
               transition={{ delay: 0.2 }}
               className="w-full space-y-4"
             >
-              <div className="relative flex items-center bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md focus-within:shadow-md focus-within:border-amber-500/50 transition-all px-4 py-2">
+              <div className="relative flex items-center bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md focus-within:shadow-md focus-within:border-amber-500 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all px-4 py-2">
                 <input
+                  ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()}
                   placeholder="Escribe tu consulta a la Inteligencia de Leads (ej: busca prospectos de stripe.com...)"
                   className="w-full bg-transparent px-2 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
@@ -519,7 +632,20 @@ function LeadsChatContent() {
                 {quickPrompts.map((item) => (
                   <button
                     key={item.query}
-                    onClick={() => handleSendQuery(item.query)}
+                    onClick={() => {
+                      if (item.isFillOnly) {
+                        setInput(item.query);
+                        setTimeout(() => {
+                          if (inputRef.current) {
+                            inputRef.current.focus();
+                            const len = inputRef.current.value.length;
+                            inputRef.current.setSelectionRange(len, len);
+                          }
+                        }, 50);
+                      } else {
+                        handleSendQuery(item.query);
+                      }
+                    }}
                     className="flex items-center gap-2 text-xs bg-white hover:bg-slate-100/80 text-slate-700 border border-slate-200/80 px-4 py-2 rounded-2xl transition-all shadow-2xs font-medium"
                   >
                     <span>{item.label}</span>
@@ -570,7 +696,7 @@ function LeadsChatContent() {
                               : 'bg-transparent text-slate-800 py-1 text-xs sm:text-sm leading-relaxed'
                           }`}
                         >
-                          <p className="whitespace-pre-line">{msg.content}</p>
+                          <p className="whitespace-pre-line">{renderFormattedText(msg.content)}</p>
 
                           {/* Widget interactivo de Lead generado por la IA en la respuesta */}
                           {msg.payload?.lead && (
@@ -718,11 +844,12 @@ function LeadsChatContent() {
 
             {/* Barra Inferior cuando hay conversación activa */}
             <div className="border-t border-slate-200/80 p-4 bg-[#f8fafd]">
-              <div className="max-w-2xl mx-auto flex items-center gap-2 bg-white border border-slate-200/90 rounded-3xl px-4 py-2 focus-within:ring-2 focus-within:ring-amber-500/20 transition-all shadow-2xs">
+              <div className="max-w-2xl mx-auto flex items-center gap-2 bg-white border border-slate-200/90 rounded-3xl px-4 py-2 focus-within:ring-2 focus-within:ring-amber-500/20 focus-within:border-amber-500 transition-all shadow-2xs">
                 <input
+                  ref={inputRef}
                   type="text"
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleSendQuery()}
                   placeholder="Escribe tu consulta a la Inteligencia de Leads..."
                   className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none py-1.5 px-1"

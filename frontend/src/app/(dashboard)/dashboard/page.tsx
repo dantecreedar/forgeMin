@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import { api } from '@/lib/api';
-import { ArrowUp, Sparkles, Folder, Target, HardDrive, FileText, Check, Save } from 'lucide-react';
+import { ArrowUp, Sparkles, Folder, Target, HardDrive, FileText, Check, Save, Users, Mail } from 'lucide-react';
 import { GraphCard } from '@/components/chat/graph-card';
 import { DrivePickerModal } from '@/components/drive/drive-picker-modal';
 import { SendEmailDropdown } from '@/components/chat/send-email-dropdown';
@@ -12,6 +12,7 @@ import { DotsLoader } from '@/components/ui/dots-loader';
 import { DeerIcon } from '@/components/ui/deer-icon';
 import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
 import { translations } from '@/lib/translations';
+import { renderFormattedText } from '@/lib/link-renderer';
 
 interface Message {
   id: string;
@@ -86,6 +87,7 @@ export default function DashboardPage() {
   const [activeSessionId, setActiveSessionId] = useState<string>(() => 'session-' + Date.now());
 
   const endRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const activeTheme = themeStyles[settings.messageDesign] || themeStyles.slate;
 
   const showNotification = (msg: string) => {
@@ -222,6 +224,14 @@ export default function DashboardPage() {
     showNotification('Respuesta guardada en el historial');
   };
 
+  const handleInputChange = (val: string) => {
+    if (input.startsWith('buscar a ') && !val.startsWith('buscar a ')) {
+      setInput('buscar a ');
+      return;
+    }
+    setInput(val);
+  };
+
   const send = async (
     textToSend?: string,
     fileAttachment?: { name: string; isExplain?: boolean }
@@ -272,13 +282,15 @@ export default function DashboardPage() {
   };
 
   const quickPrompts = [
-    { label: '📊 Resumen Global con IA', query: 'analizar todo y dar un resumen global de los proyectos', icon: Sparkles },
+    { label: '✉️ Enviar reporte por correo', query: 'enviar reporte por correo', icon: Mail },
+    { label: '🔍 Buscar a...', query: 'buscar a ', icon: Users, isFillOnly: true },
     { label: 'Ver Proyectos', query: 'muestrame los proyectos', icon: Folder },
     { label: 'Ver Objetivos', query: 'muestrame los objetivos', icon: Target },
   ];
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f8fafd] relative">
+
       {/* Toast Notification */}
       {toastMsg && (
         <motion.div
@@ -328,10 +340,11 @@ export default function DashboardPage() {
               transition={{ delay: 0.2 }}
               className="w-full space-y-4"
             >
-              <div className="relative flex items-center bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md focus-within:shadow-md focus-within:border-blue-500/50 transition-all px-4 py-2">
+              <div className="relative flex items-center bg-white border border-slate-200/90 rounded-3xl shadow-xs hover:shadow-md focus-within:shadow-md focus-within:border-blue-500 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all px-4 py-2">
                 <input
+                  ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && send()}
                   placeholder={t.dashboard.placeholder}
                   className="w-full bg-transparent px-2 py-3 text-sm text-slate-900 placeholder:text-slate-400 outline-none"
@@ -369,7 +382,20 @@ export default function DashboardPage() {
                   return (
                     <button
                       key={item.query}
-                      onClick={() => send(item.query)}
+                      onClick={() => {
+                        if (item.isFillOnly) {
+                          setInput(item.query);
+                          setTimeout(() => {
+                            if (inputRef.current) {
+                              inputRef.current.focus();
+                              const len = inputRef.current.value.length;
+                              inputRef.current.setSelectionRange(len, len);
+                            }
+                          }, 50);
+                        } else {
+                          send(item.query);
+                        }
+                      }}
                       className="flex items-center gap-2 text-xs bg-white hover:bg-slate-100/80 text-slate-700 border border-slate-200/80 px-4 py-2 rounded-2xl transition-all shadow-2xs font-medium"
                     >
                       <Icon size={14} className="text-blue-600" />
@@ -438,7 +464,7 @@ export default function DashboardPage() {
                               </div>
                             )}
 
-                            <p className="whitespace-pre-line relative z-10">{cleanText}</p>
+                            <p className="whitespace-pre-line relative z-10">{renderFormattedText(cleanText)}</p>
 
                             {/* Assistant Response Actions */}
                             {!isUser && (
@@ -489,10 +515,11 @@ export default function DashboardPage() {
             </div>
 
             <div className="border-t border-slate-200/80 p-4 bg-[#f8fafd]">
-              <div className="max-w-2xl mx-auto flex items-center gap-2 bg-white border border-slate-200/90 rounded-3xl px-4 py-2 focus-within:ring-2 focus-within:ring-blue-500/20 transition-all shadow-2xs">
+              <div className="max-w-2xl mx-auto flex items-center gap-2 bg-white border border-slate-200/90 rounded-3xl px-4 py-2 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all shadow-2xs">
                 <input
+                  ref={inputRef}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && send()}
                   placeholder={t.dashboard.placeholder}
                   className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none py-1.5 px-1"

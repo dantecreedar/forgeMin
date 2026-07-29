@@ -83,6 +83,7 @@ import { GmailOutreachService } from './infrastructure/services/gmail-outreach.s
 import { InMemoryLeadRepository } from './infrastructure/repositories/in-memory-lead.repository';
 import { LeadDripSequenceCronService } from './infrastructure/services/lead-drip-sequence-cron.service';
 import { HunterEnrichmentService } from './infrastructure/services/hunter-enrichment.service';
+import { ApolloEnrichmentService } from './infrastructure/services/apollo-enrichment.service';
 
 import { LinkedInService } from './infrastructure/linkedin/linkedin.service';
 import { LinkedInController } from './presentation/controllers/linkedin.controller';
@@ -157,6 +158,7 @@ const firestoreProviders = [
     GmailOutreachService,
     LeadDripSequenceCronService,
     HunterEnrichmentService,
+    ApolloEnrichmentService,
     LinkedInService,
     { provide: GITHUB_CLIENT, useClass: GitHubClientService },
     { provide: AUTH_SERVICE, useClass: FirebaseAuthService },

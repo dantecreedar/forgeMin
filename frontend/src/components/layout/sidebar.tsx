@@ -63,7 +63,6 @@ export function Sidebar() {
     { href: '/dashboard', label: t.sidebar.intelligence, icon: LayoutDashboard, mode: 'common' },
     { href: '/saved-chats', label: t.sidebar.savedChats, icon: Save, mode: 'common' },
     { href: '/workspaces', label: t.sidebar.workspaces, icon: Folder, mode: 'management' },
-    { href: '/objectives', label: 'Objetivos & Metas', icon: Target, mode: 'management' },
     { href: '/repositories', label: t.sidebar.repositories, icon: FolderGit2, mode: 'dev' },
     { href: '/dashboard/leads', label: 'Prospección & Leads', icon: Users, mode: 'founder' },
   ];

@@ -58,10 +58,15 @@ export interface CodebaseAnalysisResult {
 export class GeminiService {
   private genAI: GoogleGenerativeAI;
   private model: GenerativeModel;
+  private chatModel: GenerativeModel;
 
   constructor() {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? '');
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    this.chatModel = this.genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      tools: [{ googleSearch: {} }] as any,
+    });
   }
 
   async chat(messages: ChatMessage[]): Promise<ChatResponse> {
@@ -77,7 +82,7 @@ export class GeminiService {
       ? `${systemPrompt}\n\n${history.map((h) => `${h.role}: ${h.parts[0].text}`).join('\n')}`
       : history.map((h) => `${h.role}: ${h.parts[0].text}`).join('\n');
 
-    const result = await this.model.generateContent(prompt);
+    const result = await this.chatModel.generateContent(prompt);
     const text = result.response.text();
     return { reply: text };
   }

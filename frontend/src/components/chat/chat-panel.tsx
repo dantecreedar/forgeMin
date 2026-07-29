@@ -6,6 +6,7 @@ import { Sparkles, MessageSquare, X, Send, Mail, Save, Check } from 'lucide-reac
 import { motion } from 'framer-motion';
 import { GraphCard } from './graph-card';
 import { useProfileSettings, MessageDesign } from '@/lib/settings-context';
+import { renderFormattedText } from '@/lib/link-renderer';
 
 interface Message {
   id: string;
@@ -259,7 +260,7 @@ export function ChatPanel({ _projectId = 'default' }: { _projectId?: string }) {
                   </div>
                 )}
 
-                <p className="whitespace-pre-line relative z-10">{cleanText}</p>
+                <p className="whitespace-pre-line relative z-10">{renderFormattedText(cleanText)}</p>
 
                 {msg.payload && (
                   <div className="relative z-10 mt-2">

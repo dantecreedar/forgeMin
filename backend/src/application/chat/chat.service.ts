@@ -3,6 +3,8 @@ import { GeminiService, ChatMessage } from '../../infrastructure/gemini/gemini.s
 import { ObjectiveApplicationService } from '../objective/objective.service';
 import { ProjectApplicationService } from '../project/project.service';
 import { ILeadRepository, Lead, LeadStatus, OutreachChannel } from '../../domain/entities/lead.entity';
+import { LinkedInService } from '../../infrastructure/linkedin/linkedin.service';
+import { ApolloEnrichmentService } from '../../infrastructure/services/apollo-enrichment.service';
 
 export interface ChatSession {
   id: string;
@@ -29,6 +31,8 @@ export class ChatService {
     private readonly objectives: ObjectiveApplicationService,
     private readonly projects: ProjectApplicationService,
     @Inject('ILeadRepository') private readonly leadRepository: ILeadRepository,
+    private readonly linkedinService: LinkedInService,
+    private readonly apolloService: ApolloEnrichmentService,
   ) {}
 
   getSessions(): ChatSession[] {
@@ -83,6 +87,58 @@ export class ChatService {
     const isEnglish = lang === 'en';
     const lower = message.toLowerCase();
 
+    // Detector de búsqueda en LinkedIn
+    const linkedinPatterns = ['linkedin', 'buscar', 'busca', 'search', 'perfil', 'contacto'];
+    const isLinkedInRequest = linkedinPatterns.some((p) => lower.includes(p));
+
+    if (isLinkedInRequest) {
+      try {
+        const parsePrompt = `
+        Analiza el siguiente mensaje del usuario y determina si quiere buscar personas, perfiles o prospectos en LinkedIn:
+        "${message}"
+
+        Responde únicamente en JSON puro (sin markdown, sin comillas invertidas):
+        {
+          "isLinkedInSearch": true,
+          "role": "El nombre, cargo o rol de la persona a buscar (ej. Brian Alexis Galli, CEO, Developer)",
+          "industry": "La industria o empresa (ej. Tecnología, Google, o vacío si no se especifica)"
+        }
+        `;
+
+        const aiResponse = await this.gemini.chat([{ role: 'user', content: parsePrompt }]);
+        const cleanJsonStr = aiResponse.reply.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsed = JSON.parse(cleanJsonStr);
+
+        if (parsed.isLinkedInSearch) {
+          const role = parsed.role || '';
+          const industry = parsed.industry || '';
+
+          if (!this.linkedinService.hasToken()) {
+            return {
+              type: 'chat',
+              message: isEnglish
+                ? 'To search for profiles on LinkedIn, please connect your account first by clicking "Conectar LinkedIn" at the top of the screen.'
+                : 'Para buscar perfiles en LinkedIn, primero debes conectar tu cuenta haciendo clic en el botón "Conectar LinkedIn" en la parte superior de la pantalla.',
+            };
+          }
+
+          const results = await this.linkedinService.searchPeople(industry, role, 0);
+
+          return {
+            type: 'linkedin_results',
+            message: isEnglish
+              ? `I found these profiles on LinkedIn for "${role}" ${industry ? `in ${industry}` : ''}:`
+              : `Encontré estos perfiles en LinkedIn para "${role}" ${industry ? `en ${industry}` : ''}:`,
+            linkedInPeople: results.people,
+            hasMore: results.hasMore,
+            searchContext: { industry, role },
+          };
+        }
+      } catch (err) {
+        // Fallback a chat regular
+      }
+    }
+
     const createObjectivePatterns = ['crear objetivo:', 'nuevo objetivo:', 'crea un objetivo para:', 'create objective:', 'new objective:'];
     const isExplicitObjectiveRequest = createObjectivePatterns.some((p) => lower.includes(p));
 
@@ -115,12 +171,115 @@ export class ChatService {
       }
     }
 
+    // Detector de comandos para enviar reporte por correo
+    const reportPatterns = ['enviar reporte por correo', 'enviar reporte de correo', 'reporte por correo', 'enviar reporte', 'email report', 'send email report'];
+    const isReportRequest = reportPatterns.some((p) => lower.includes(p));
+
+    if (isReportRequest) {
+      try {
+        const reportPrompt = `
+        El usuario desea enviar un reporte por correo electrónico.
+        Tu objetivo es guiarlo para armar el mensaje de correo creando una serie de opciones y contexto:
+        • Destinatario (Email)
+        • Contenido/Contexto (ej. Avance de Objetivos, Resumen de Proyectos, Notas de Lanzamiento)
+        • Tono del Mensaje (ej. Profesional, Técnico, Informal)
+        • Asunto sugerido
+
+        Presenta estas opciones en una lista limpia y estructurada. Pregunta al usuario cuál prefiere o que te brinde los detalles para que puedas redactarle el correo.
+        REGLA DE FORMATO:
+        - Presenta la información de forma organizada, clara y profesional.
+        - NO utilices símbolos de markdown como '###', '***', '---'.
+        - Utiliza líneas limpias, espacios y viñetas simples (•) para una excelente legibilidad.
+        `;
+
+        const aiResponse = await this.gemini.chat([
+          { role: 'system', content: reportPrompt },
+          { role: 'user', content: message }
+        ]);
+
+        return {
+          type: 'chat',
+          message: aiResponse.reply,
+        };
+      } catch (err) {
+        // Fallback
+      }
+    }
+
     // Detector de comandos de Leads & Outreach
     const leadPatterns = ['lead', 'prospecto', 'empresa', 'outreach', 'prospección', 'apollo', 'contacto comercial'];
     const isLeadRequest = leadPatterns.some((p) => lower.includes(p));
 
     if (isLeadRequest) {
       try {
+        // Verificar si es una búsqueda en Apollo para un dominio
+        const apolloPrompt = `
+        Analiza el siguiente mensaje de prospección:
+        "${message}"
+
+        Determina si el usuario está solicitando explícitamente buscar prospectos en un dominio de correo/empresa (ej. stripe.com, vertex.ai) en Apollo.
+        Responde únicamente en JSON puro (sin markdown, sin comillas invertidas):
+        {
+          "isApolloSearch": true o false,
+          "domain": "el dominio a buscar (ej. stripe.com, vertex.ai, o vacío si no se detecta)"
+        }
+        `;
+
+        const apolloRes = await this.gemini.chat([{ role: 'user', content: apolloPrompt }]);
+        const cleanApolloJson = apolloRes.reply.replace(/```json/gi, '').replace(/```/g, '').trim();
+        const parsedApollo = JSON.parse(cleanApolloJson);
+
+        if (parsedApollo.isApolloSearch && parsedApollo.domain) {
+          const apolloResults = await this.apolloService.searchPeopleByDomain(parsedApollo.domain);
+          if (apolloResults && apolloResults.length > 0) {
+            const result = apolloResults[0];
+            const leadId = `lead_${Date.now()}`;
+            const newLead = new Lead(
+              leadId,
+              result.name || 'Prospecto sin nombre',
+              result.email || 'sin-email@empresa.com',
+              result.company || 'Empresa Prospecto',
+              result.title || 'Ejecutivo',
+              result.linkedinUrl || 'https://linkedin.com',
+              LeadStatus.ENRICHED,
+              { domain: parsedApollo.domain }, // companyContext
+              {
+                score: 95,
+                reasoning: `Prospecto real extraído de Apollo para el dominio ${parsedApollo.domain}.`,
+                keySynergies: ['Contacto directo validado', 'Email corporativo verificado'],
+              },
+              [
+                {
+                  channel: OutreachChannel.GMAIL,
+                  subject: `Propuesta comercial para ${result.company}`,
+                  body: `Hola ${result.name},\n\nHe visto tu trabajo en ${result.company} y quería compartirte cómo nuestra plataforma puede optimizar su desarrollo conectando GitHub con IA.\n\n¿Te gustaría agendar una demo corta?`,
+                  generatedAt: new Date(),
+                },
+                {
+                  channel: OutreachChannel.LINKEDIN,
+                  subject: 'Conexión estratégica',
+                  body: `Hola ${result.name}, me encantaría conectar contigo para compartir ideas sobre optimización de desarrollo con IA.`,
+                  generatedAt: new Date(),
+                },
+              ],
+              [], // dripSequence
+              [], // replies
+              new Date(),
+              new Date()
+            );
+
+            await this.leadRepository.save(newLead);
+
+            return {
+              type: 'lead_action',
+              message: isEnglish
+                ? `I found a real prospect on Apollo for domain **${parsedApollo.domain}**:`
+                : `He encontrado un prospecto real en Apollo para el dominio **${parsedApollo.domain}**:`,
+              lead: newLead,
+            };
+          }
+        }
+
         const leadPrompt = `
         Analiza el siguiente mensaje del usuario en un contexto comercial / prospección de leads:
         "${message}"

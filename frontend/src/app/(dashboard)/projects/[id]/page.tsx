@@ -1259,7 +1259,7 @@ ${cleanRecommendations || 'Sin recomendaciones registradas.'}`;
 
 
         {/* Live Git Activity Graph & Development Timeline */}
-        {(connectedRepos.length > 0 || gitActivity) && (
+        {(connectedRepos.length > 0 && gitActivity) && (
           <div className={`bg-white border border-slate-200 rounded-2xl p-6 shadow-xs space-y-4 transition-all duration-300 ${
             (isFocusMode || analyzingArchitecture) ? 'blur-[1.5px] opacity-35 pointer-events-none' : ''
           }`}>

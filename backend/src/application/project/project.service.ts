@@ -55,9 +55,21 @@ export class ProjectApplicationService {
     await this.projectRepository.update(project.archive());
   }
 
-  async updateArchitectureReport(id: string, report: any): Promise<Project> {
+  async updateArchitectureReport(id: string, report: any, repositoryId?: string): Promise<Project> {
     const project = await this.findById(id);
-    const updated = project.updateArchitectureReport(report);
+    let updatedReport = project.architectureReport || {};
+    if (repositoryId) {
+      if (updatedReport && typeof updatedReport === 'object' && 'overview' in updatedReport) {
+        updatedReport = { default: updatedReport };
+      }
+      updatedReport = {
+        ...updatedReport,
+        [repositoryId]: report
+      };
+    } else {
+      updatedReport = report;
+    }
+    const updated = project.updateArchitectureReport(updatedReport);
     await this.projectRepository.update(updated);
     return updated;
   }
